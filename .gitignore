@@ -1,0 +1,32 @@
+# Claude Code local settings
+.claude/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Go
+apps/api/chess-mentor-api
+apps/api/*.exe
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Stockfish binary (only root-level binaries, not the service package)
+/stockfish
+/stockfish.exe
+apps/api/stockfish
+apps/api/stockfish.exe

@@ -178,8 +178,6 @@ func (c *Client) AnalyzeFullGame(ctx context.Context, game models.Game, playerUs
 	}
 
 	// chessNotation converts absolute move index to standard chess notation.
-	// MoveNumber is 1-based absolute (1=white move 1, 2=black move 1, 3=white move 2, ...).
-	// Chess notation: move 1 for both colors, differentiated by "." vs "...".
 	chessNotation := func(m models.Move) string {
 		chessMove := (m.MoveNumber + 1) / 2
 		if m.Color == "white" {
@@ -188,16 +186,25 @@ func (c *Client) AnalyzeFullGame(ctx context.Context, game models.Game, playerUs
 		return fmt.Sprintf("%d...%s", chessMove, m.SAN)
 	}
 
+	// evalLabel formats the Stockfish eval (always white's perspective) with
+	// an explicit label so Claude never needs to infer who benefits.
+	evalLabel := func(eval float64) string {
+		if eval >= 0 {
+			return fmt.Sprintf("+%.2f (ventaja para las blancas)", eval)
+		}
+		return fmt.Sprintf("%.2f (ventaja para las negras)", eval)
+	}
+
 	// Build a compact summary — only critical moves to save tokens
 	var summary strings.Builder
 	mistakes, blunders := 0, 0
 	for _, m := range game.Moves {
 		if m.IsBlunder {
 			blunders++
-			fmt.Fprintf(&summary, "%s — BLUNDER (eval blancas: %.2f)\n", chessNotation(m), m.StockfishEval)
+			fmt.Fprintf(&summary, "%s — BLUNDER eval=%s\n", chessNotation(m), evalLabel(m.StockfishEval))
 		} else if m.IsMistake {
 			mistakes++
-			fmt.Fprintf(&summary, "%s — error (eval blancas: %.2f)\n", chessNotation(m), m.StockfishEval)
+			fmt.Fprintf(&summary, "%s — error eval=%s\n", chessNotation(m), evalLabel(m.StockfishEval))
 		} else if m.TimeSpentSeconds > 0 && m.TimeSpentSeconds < 5 && m.MoveNumber > 15 {
 			fmt.Fprintf(&summary, "%s — jugada rápida (%.1fs)\n", chessNotation(m), m.TimeSpentSeconds)
 		}
@@ -212,8 +219,8 @@ Apertura: %s | Control: %s | Total: %d jugadas
 Jugador analizado: %s (juega %s)
 Errores del jugador: %d errores, %d blunders
 
-NOTA: La notación de movimientos usa formato estándar: "12.Nd4" = blancas jugada 12, "12...Nd4" = negras jugada 12.
-La evaluación siempre es desde perspectiva de blancas (positivo = ventaja blancas).
+NOTA: La notación usa formato estándar: "12.Nd4" = blancas jugada 12, "12...Nd4" = negras jugada 12.
+La evaluación es siempre desde perspectiva de las blancas. Cuando cites un valor, indica SIEMPRE para quién es la ventaja: "+4.56 (ventaja para las blancas)" o "-3.20 (ventaja para las negras)". Nunca cites solo el número.
 
 Movimientos críticos (errores e imprecisiones):
 %s

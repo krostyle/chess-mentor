@@ -4,7 +4,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/
-COPY packages/types/package.json ./packages/types/
+COPY packages/types/ ./packages/types/
 RUN npm ci
 
 # ── Builder ───────────────────────────────────────────────────────────────────

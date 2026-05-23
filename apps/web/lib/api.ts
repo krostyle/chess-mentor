@@ -1,10 +1,11 @@
 import type { PlayerProfile, Game, ExplainRequest, ExplainResponse } from '@/types'
 
-// Server Components run on Node (window === undefined) → use the internal Docker URL.
-// Client Components run in the browser → use the public URL.
 function apiUrl(): string {
   if (typeof window === 'undefined') {
-    return process.env.API_INTERNAL_URL ?? 'http://localhost:8080'
+    // Server-side: prefer API_INTERNAL_URL, fall back to NEXT_PUBLIC_API_URL
+    return process.env.API_INTERNAL_URL
+      ?? process.env.NEXT_PUBLIC_API_URL
+      ?? 'http://localhost:8080'
   }
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
 }

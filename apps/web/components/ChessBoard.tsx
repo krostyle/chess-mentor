@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
-import type { Game } from '@chess-mentor/types'
+import type { Game } from '@/types'
 import { MoveNavigator } from './MoveNavigator'
 
 interface Props {

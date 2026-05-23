@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Move } from '@chess-mentor/types'
+import type { Move } from '@/types'
 import { explainMove } from '@/lib/api'
 
 interface Props {

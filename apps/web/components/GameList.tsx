@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Game } from '@chess-mentor/types'
+import type { Game } from '@/types'
 import { getGameById } from '@/lib/api'
 import { GameViewer } from './GameViewer'
 

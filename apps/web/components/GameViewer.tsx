@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { Game, Move } from '@chess-mentor/types'
+import type { Game, Move } from '@/types'
 import { Chessboard } from 'react-chessboard'
 import { GameSelector } from './GameSelector'
 import { MoveNavigator } from './MoveNavigator'

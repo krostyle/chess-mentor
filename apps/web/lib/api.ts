@@ -1,4 +1,4 @@
-import type { PlayerProfile, Game, ExplainRequest, ExplainResponse } from '@chess-mentor/types'
+import type { PlayerProfile, Game, ExplainRequest, ExplainResponse } from '@/types'
 
 // Server Components run on Node (window === undefined) → use the internal Docker URL.
 // Client Components run in the browser → use the public URL.

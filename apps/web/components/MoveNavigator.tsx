@@ -1,6 +1,6 @@
 'use client'
 
-import type { Move } from '@chess-mentor/types'
+import type { Move } from '@/types'
 
 interface Props {
   currentIndex: number

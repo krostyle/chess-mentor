@@ -1,7 +1,7 @@
 'use client'
 
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import type { PlayerProfile as Profile } from '@chess-mentor/types'
+import type { PlayerProfile as Profile } from '@/types'
 
 interface Props {
   profile: Profile

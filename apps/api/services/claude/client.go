@@ -177,43 +177,54 @@ func (c *Client) AnalyzeFullGame(ctx context.Context, game models.Game, playerUs
 		playerColor = "negras"
 	}
 
+	// chessNotation converts absolute move index to standard chess notation.
+	// MoveNumber is 1-based absolute (1=white move 1, 2=black move 1, 3=white move 2, ...).
+	// Chess notation: move 1 for both colors, differentiated by "." vs "...".
+	chessNotation := func(m models.Move) string {
+		chessMove := (m.MoveNumber + 1) / 2
+		if m.Color == "white" {
+			return fmt.Sprintf("%d.%s", chessMove, m.SAN)
+		}
+		return fmt.Sprintf("%d...%s", chessMove, m.SAN)
+	}
+
 	// Build a compact summary — only critical moves to save tokens
 	var summary strings.Builder
 	mistakes, blunders := 0, 0
-	turningPoint := 0
 	for _, m := range game.Moves {
 		if m.IsBlunder {
 			blunders++
-			if turningPoint == 0 {
-				turningPoint = m.MoveNumber
-			}
-			fmt.Fprintf(&summary, "Mov %d (%s) %s — BLUNDER eval=%.2f\n", m.MoveNumber, m.Color, m.SAN, m.StockfishEval)
+			fmt.Fprintf(&summary, "%s — BLUNDER (eval blancas: %.2f)\n", chessNotation(m), m.StockfishEval)
 		} else if m.IsMistake {
 			mistakes++
-			fmt.Fprintf(&summary, "Mov %d (%s) %s — error eval=%.2f\n", m.MoveNumber, m.Color, m.SAN, m.StockfishEval)
+			fmt.Fprintf(&summary, "%s — error (eval blancas: %.2f)\n", chessNotation(m), m.StockfishEval)
 		} else if m.TimeSpentSeconds > 0 && m.TimeSpentSeconds < 5 && m.MoveNumber > 15 {
-			fmt.Fprintf(&summary, "Mov %d (%s) %s — jugada rápida (%.1fs)\n", m.MoveNumber, m.Color, m.SAN, m.TimeSpentSeconds)
+			fmt.Fprintf(&summary, "%s — jugada rápida (%.1fs)\n", chessNotation(m), m.TimeSpentSeconds)
 		}
 	}
 
+	totalChessMoves := (len(game.Moves) + 1) / 2
+
 	userMsg := fmt.Sprintf(`Analiza esta partida como un entrenador de ajedrez.
 
-Partida: %s (%s) vs %s (%s) — Resultado: %s
-Apertura: %s | Control: %s | Total movimientos: %d
+Partida: %s (%d) vs %s (%d) — Resultado: %s
+Apertura: %s | Control: %s | Total: %d jugadas
 Jugador analizado: %s (juega %s)
-Errores: %d errores, %d blunders
+Errores del jugador: %d errores, %d blunders
 
-Movimientos críticos:
+NOTA: La notación de movimientos usa formato estándar: "12.Nd4" = blancas jugada 12, "12...Nd4" = negras jugada 12.
+La evaluación siempre es desde perspectiva de blancas (positivo = ventaja blancas).
+
+Movimientos críticos (errores e imprecisiones):
 %s
-
 Escribe un análisis narrativo de 3-4 párrafos:
 1. Resumen general de cómo fue la partida
-2. El momento bisagra y qué debió hacerse
-3. Patrón principal de error del jugador en esta partida
+2. El momento bisagra (indica la jugada exacta en notación estándar) y qué debió hacerse
+3. Patrón principal de error del jugador analizado en esta partida
 4. Una recomendación concreta de qué trabajar`,
-		game.White, fmt.Sprintf("%d", game.WhiteElo),
-		game.Black, fmt.Sprintf("%d", game.BlackElo),
-		game.Result, game.Opening, game.TimeControl, len(game.Moves),
+		game.White, game.WhiteElo,
+		game.Black, game.BlackElo,
+		game.Result, game.Opening, game.TimeControl, totalChessMoves,
 		playerUsername, playerColor,
 		mistakes, blunders,
 		summary.String(),

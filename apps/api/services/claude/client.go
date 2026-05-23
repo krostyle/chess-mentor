@@ -13,10 +13,10 @@ import (
 )
 
 const systemPrompt = `Eres un Gran Maestro de ajedrez con experiencia como entrenador.
-Tu rol es explicar el ajedrez de forma pedagógica, clara y personalizada
-al perfil específico del jugador. No eres un motor de ajedrez — eres un
-entrenador humano que interpreta datos y da feedback útil y memorable.
-Responde siempre en el idioma del jugador.`
+Tu rol es explicar el ajedrez de forma pedagógica, clara y personalizada.
+REGLA OBLIGATORIA: Nunca uses "tú", "tu jugada" ni "jugaste". Siempre identifica el bando por color:
+"las blancas jugaron X", "las negras cometieron un error", etc. Esto evita toda ambigüedad.
+Responde siempre en español.`
 
 type Client struct {
 	client anthropic.Client
@@ -64,42 +64,91 @@ Métricas del jugador:
 
 // ExplainMove generates a pedagogical explanation for a specific move in context.
 func (c *Client) ExplainMove(ctx context.Context, req models.ExplainRequest) (models.ExplainResponse, error) {
+	// Determine color labels
+	movingColor := "las blancas"
+	if req.MoveColor == "black" {
+		movingColor = "las negras"
+	}
+	playerColor := "las blancas"
+	if req.PlayerColor == "black" {
+		playerColor = "las negras"
+	}
+	moveAuthor := movingColor + " (JUGADOR ANALIZADO)"
+	if req.MoveColor != req.PlayerColor {
+		moveAuthor = movingColor + " (CONTRINCANTE)"
+	}
+
+	// Eval is always from white's perspective; convert to player's perspective
+	evalForPlayer := req.StockfishEval
+	evalNote := "positivo = ventaja para las blancas"
+	if req.PlayerColor == "black" {
+		evalNote = "positivo = ventaja para las blancas, es decir, DESVENTAJA para el jugador analizado (negras)"
+	}
+
+	// Stockfish section
 	var stockfishSection string
 	if req.BestMoveSAN != "" && req.BestMoveSAN != req.Move {
 		stockfishSection = fmt.Sprintf(
 			"## Por qué Stockfish prefiere %s\n"+
-				"Stockfish recomienda %s en lugar de %s. Explica en 2-3 oraciones qué ventaja concreta genera %s: "+
-				"¿qué amenaza activa, qué debilidad explota, qué estructura mejora? Nombra las piezas en español con su casilla.",
-			req.BestMoveSAN, req.BestMoveSAN, req.Move, req.BestMoveSAN,
+				"Stockfish recomienda %s en lugar de %s (jugada de %s). "+
+				"Explica en 2-3 oraciones qué ventaja concreta genera %s: "+
+				"¿qué amenaza activa, qué debilidad explota, qué estructura mejora?",
+			req.BestMoveSAN, req.BestMoveSAN, req.Move, movingColor, req.BestMoveSAN,
 		)
 	} else {
-		stockfishSection = "## Por qué Stockfish prefiere esta jugada\n" +
-			"El jugador eligió la jugada recomendada por Stockfish. Explica en 2-3 oraciones qué hace este movimiento especialmente bueno: " +
-			"¿qué ventaja concreta genera o qué problema resuelve?"
+		stockfishSection = fmt.Sprintf(
+			"## Por qué Stockfish prefiere esta jugada\n"+
+				"%s eligió la jugada recomendada por Stockfish. "+
+				"Explica en 2-3 oraciones qué hace %s especialmente buena en esta posición.",
+			movingColor, req.Move,
+		)
 	}
 
-	userMsg := fmt.Sprintf(`Analiza el movimiento %s en la posición FEN: %s
-Evaluación Stockfish: %s | Fase: %s | Perfil: %s
+	userMsg := fmt.Sprintf(`CONTEXTO DE LA JUGADA:
+- Jugador analizado: %s
+- Quién jugó: %s
+- Jugada: %s
+- Evaluación Stockfish tras la jugada: %s (%s)
+- Mejor jugada según Stockfish: %s
+- Fase: %s
+- FEN tras la jugada: %s
+- Perfil del jugador: %s
 
-Al referirte a piezas, usa siempre su nombre en español (Rey, Reina, Torre, Alfil, Caballo, Peón) seguido de la casilla. Por ejemplo: "el Caballo de g1 va a f3" o "la Torre captura en e8". Nunca uses solo coordenadas.
+Nombra las piezas en español con su casilla: "el Caballo de g1 va a f3", "la Torre captura en e8". Nunca uses solo coordenadas.
 
 Responde EXACTAMENTE con estas 5 secciones en markdown, sin agregar otras:
 
 ## Explicación
-2-3 oraciones explicando qué hace este movimiento y por qué es bueno o malo.
+2-3 oraciones explicando qué hace la jugada de %s y por qué es buena o mala.
 
 %s
 
 ## Plan del jugador
-¿Qué idea o plan concreto persigue quien jugó este movimiento? ¿Qué amenaza o estructura busca crear?
+¿Qué idea o plan concreto persigue %s con este movimiento? ¿Qué amenaza o estructura busca crear?
 
 ## Plan del contrincante
-Si esta jugada es del contrincante: ¿qué amenaza o idea activa con este movimiento? ¿Cuál es su plan a corto y largo plazo?
-Si esta jugada es del jugador analizado: ¿cómo debería responder el contrincante? ¿Qué plan tiene disponible?
+¿Qué debería hacer el bando contrario en respuesta, y por qué? Si la jugada activa una amenaza, ¿cómo se neutraliza?
 
 ## ¿Qué estudiar?
-Un concepto o patrón específico que el jugador debería trabajar basándose en esta posición.`,
-		req.Move, req.FEN, req.StockfishEval, req.GamePhase, req.PlayerProfileSummary, stockfishSection)
+Un concepto o patrón específico que el jugador analizado (%s) debería trabajar.`,
+		playerColor,
+		moveAuthor,
+		req.Move,
+		evalForPlayer, evalNote,
+		func() string {
+			if req.BestMoveSAN != "" {
+				return req.BestMoveSAN
+			}
+			return "(misma jugada)"
+		}(),
+		req.GamePhase,
+		req.FEN,
+		req.PlayerProfileSummary,
+		movingColor,
+		stockfishSection,
+		movingColor,
+		playerColor,
+	)
 
 	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,

@@ -62,10 +62,12 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
     const resp = await explainMove({
       fen: currentMove.fen_after,
       move: currentMove.san,
-      stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
+      stockfish_eval: currentMove.stockfish_eval != null ? String(currentMove.stockfish_eval) : '0',
       game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: `Jugador con ${playerColor === 'black' ? 'negras' : 'blancas'}. Esta jugada es del ${isPlayerMove ? 'jugador analizado' : 'contrincante'}. ${profileSummary || 'Sin perfil analizado.'}`,
+      player_profile_summary: profileSummary || 'Sin perfil analizado.',
       best_move_san: bestMoveSan,
+      player_color: playerColor ?? 'white',
+      move_color: currentMove.color,
     })
 
     if (resp?.explanation) {

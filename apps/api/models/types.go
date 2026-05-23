@@ -73,6 +73,8 @@ type ExplainRequest struct {
 	GamePhase            string `json:"game_phase"`
 	PlayerProfileSummary string `json:"player_profile_summary"`
 	BestMoveSAN          string `json:"best_move_san,omitempty"`
+	PlayerColor          string `json:"player_color"`
+	MoveColor            string `json:"move_color"`
 }
 
 type ExplainResponse struct {

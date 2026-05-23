@@ -81,6 +81,8 @@ export interface ExplainRequest {
   game_phase: 'opening' | 'middlegame' | 'endgame'
   player_profile_summary: string
   best_move_san?: string
+  player_color: 'white' | 'black'
+  move_color: 'white' | 'black'
 }
 
 export interface ExplainResponse {

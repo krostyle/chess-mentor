@@ -11,9 +11,10 @@ interface Props {
   games: Game[]
   profileSummary: string
   profileNarrative: string
+  username?: string
 }
 
-export function GameViewer({ games, profileSummary, profileNarrative }: Props) {
+export function GameViewer({ games, profileSummary, profileNarrative, username }: Props) {
   const [selectedGame, setSelectedGame] = useState<Game>(games[0])
   const [moveIndex, setMoveIndex] = useState(0) // 0 = start position
 
@@ -83,6 +84,8 @@ export function GameViewer({ games, profileSummary, profileNarrative }: Props) {
           profileNarrative={profileNarrative}
           currentMove={currentMove}
           profileSummary={profileSummary}
+          game={selectedGame}
+          username={username}
         />
       </div>
     </div>

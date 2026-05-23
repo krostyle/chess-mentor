@@ -133,6 +133,7 @@ export function GameList({ username, games }: Props) {
               games={[loadedGame]}
               profileSummary=""
               profileNarrative=""
+              username={username}
             />
           )}
         </div>

@@ -63,14 +63,25 @@ Métricas del jugador:
 
 // ExplainMove generates a pedagogical explanation for a specific move in context.
 func (c *Client) ExplainMove(ctx context.Context, req models.ExplainRequest) (models.ExplainResponse, error) {
-	userMsg := fmt.Sprintf(`Explica el movimiento %s en la siguiente posición (FEN: %s).
-Evaluación de Stockfish: %s. Fase del juego: %s.
-Perfil del jugador: %s.
+	userMsg := fmt.Sprintf(`Analiza el movimiento %s en la posición FEN: %s
+Evaluación Stockfish: %s | Fase: %s | Perfil: %s
 
-Responde con:
-1. Explicación del movimiento (2-3 oraciones)
-2. Conceptos clave que ilustra este movimiento
-3. Si hay una alternativa notable, menciónala brevemente`,
+Responde EXACTAMENTE con estas 5 secciones en markdown, sin agregar otras:
+
+## Explicación
+2-3 oraciones explicando qué hace este movimiento y por qué es bueno o malo.
+
+## ¿Por qué no otra jugada?
+Menciona 1-2 alternativas concretas y por qué este movimiento es mejor o peor que ellas.
+
+## Plan del jugador
+¿Qué idea o plan concreto persigue quien jugó este movimiento?
+
+## Plan del contrincante
+¿Qué debe intentar hacer el contrincante en respuesta? ¿Cuál es su mejor continuación?
+
+## ¿Qué estudiar?
+Un concepto o patrón específico que el jugador debería trabajar basándose en esta posición.`,
 		req.Move, req.FEN, req.StockfishEval, req.GamePhase, req.PlayerProfileSummary)
 
 	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{

@@ -1,137 +1,107 @@
 'use client'
 
-import { useState } from 'react'
-import type { Move } from '@/types'
+import { useState, type ReactNode } from 'react'
+import type { Move, Game } from '@/types'
 import { explainMove } from '@/lib/api'
 
 interface Props {
   profileNarrative: string
   profileSummary: string
   currentMove: Move | null
+  game?: Game
+  username?: string
 }
 
-const QUICK_QUESTIONS = [
+const SECTIONS = [
+  'Explicación',
   '¿Por qué no otra jugada?',
-  '¿Cuál era el plan aquí?',
-  '¿Qué debería estudiar?',
+  'Plan del jugador',
+  'Plan del contrincante',
+  '¿Qué estudiar?',
 ]
 
-export function AnalysisPanel({ profileNarrative, profileSummary, currentMove }: Props) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'move'>('profile')
+export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username }: Props) {
+  const [activeTab, setActiveTab] = useState<'game' | 'move'>('move')
   const [explanation, setExplanation] = useState<string | null>(null)
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
   const [loading, setLoading] = useState(false)
-
-  async function askQuestion(question: string) {
-    if (!currentMove) return
-    setLoading(true)
-    setExplanation(null)
-
-    const resp = await explainMove({
-      fen: currentMove.fen_after,
-      move: currentMove.san,
-      stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
-      game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: `${profileSummary}. Pregunta: ${question}`,
-    })
-
-    setExplanation(resp?.explanation ?? 'No se pudo obtener explicación.')
-    setLoading(false)
-  }
 
   async function explainCurrentMove() {
     if (!currentMove) return
     setLoading(true)
     setExplanation(null)
+    setActiveSection(SECTIONS[0])
 
     const resp = await explainMove({
       fen: currentMove.fen_after,
       move: currentMove.san,
       stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
       game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: profileSummary,
+      player_profile_summary: profileSummary || 'Jugador sin perfil analizado.',
     })
 
-    setExplanation(resp?.explanation ?? 'No se pudo obtener explicación.')
+    setExplanation(resp?.explanation ?? null)
     setLoading(false)
   }
+
+  // Parse markdown into sections keyed by ## heading
+  function parseSections(md: string): Record<string, string> {
+    const result: Record<string, string> = {}
+    const parts = md.split(/^## /m)
+    for (const part of parts) {
+      const newline = part.indexOf('\n')
+      if (newline === -1) continue
+      const heading = part.slice(0, newline).trim()
+      const body = part.slice(newline + 1).trim()
+      result[heading] = body
+    }
+    return result
+  }
+
+  const sections = explanation ? parseSections(explanation) : {}
+  const sectionText = sections[activeSection] ?? ''
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4 h-full">
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-800 pb-3">
-        {(['profile', 'move'] as const).map((tab) => (
+        {(['move', 'game'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1 text-sm rounded-md transition ${
-              activeTab === tab
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-400 hover:text-white'
+              activeTab === tab ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
             }`}
           >
-            {tab === 'profile' ? 'Mi perfil' : 'Este movimiento'}
+            {tab === 'move' ? 'Este movimiento' : 'Esta partida'}
           </button>
         ))}
       </div>
 
-      {activeTab === 'profile' && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-300">Análisis del GM</h3>
-          {profileNarrative ? (
-            <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">
-              {profileNarrative}
-            </p>
-          ) : (
-            <div className="rounded-lg border border-dashed border-gray-700 p-4 text-center space-y-2">
-              <p className="text-sm text-gray-500">
-                El análisis narrativo solo está disponible en el perfil completo.
-              </p>
-              <p className="text-xs text-gray-600">
-                Usa <span className="text-indigo-400">Analizar perfil completo →</span> para obtener un resumen del GM con tus patrones de juego.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* ── Move analysis tab ── */}
       {activeTab === 'move' && (
         <div className="space-y-4">
           {currentMove ? (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-mono text-white">{currentMove.san}</span>
-                  <span className="ml-2 text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
-                  {currentMove.time_spent_seconds != null && currentMove.time_spent_seconds > 0 && (
-                    <span className="ml-2 text-xs text-gray-600">
-                      {currentMove.time_spent_seconds.toFixed(1)}s
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={explainCurrentMove}
-                  disabled={loading}
-                  className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
-                >
-                  Explicar
-                </button>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-mono text-white">{currentMove.san}</span>
+                <span className="ml-2 text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
+                {currentMove.stockfish_eval != null && (
+                  <span className={`ml-2 text-xs font-mono ${currentMove.stockfish_eval >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {currentMove.stockfish_eval > 0 ? '+' : ''}{currentMove.stockfish_eval.toFixed(2)}
+                  </span>
+                )}
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                {QUICK_QUESTIONS.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => askQuestion(q)}
-                    disabled={loading}
-                    className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-400 transition hover:border-indigo-500 hover:text-indigo-400 disabled:opacity-40"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </>
+              <button
+                onClick={explainCurrentMove}
+                disabled={loading}
+                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+              >
+                Explicar
+              </button>
+            </div>
           ) : (
-            <p className="text-sm text-gray-500">Selecciona un movimiento en el tablero para analizarlo.</p>
+            <p className="text-sm text-gray-500">Selecciona un movimiento para analizarlo.</p>
           )}
 
           {loading && (
@@ -141,13 +111,126 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove }:
             </div>
           )}
 
-          {explanation && (
-            <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
-              {explanation}
+          {explanation && !loading && (
+            <div className="space-y-3">
+              {/* Section pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {SECTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setActiveSection(s)}
+                    className={`rounded-full px-3 py-1 text-xs transition ${
+                      activeSection === s
+                        ? 'bg-indigo-600 text-white'
+                        : 'border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-400'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Section content */}
+              <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
+                <MarkdownText text={sectionText || 'Sin información para esta sección.'} />
+              </div>
             </div>
           )}
         </div>
       )}
+
+      {/* ── Game info tab ── */}
+      {activeTab === 'game' && (
+        <div className="space-y-4">
+          {game ? (
+            <>
+              <div className="space-y-2 text-sm">
+                <InfoRow label="Blancas" value={game.white} elo={game.white_elo} />
+                <InfoRow label="Negras" value={game.black} elo={game.black_elo} />
+                <InfoRow label="Resultado" value={game.result} />
+                <InfoRow label="Apertura" value={game.opening || '—'} />
+                <InfoRow label="Control" value={game.time_control} />
+              </div>
+
+              {profileNarrative ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                    Análisis del GM
+                  </p>
+                  <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
+                    <MarkdownText text={profileNarrative} />
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-700 p-4 text-center space-y-2">
+                  <p className="text-xs text-gray-500">
+                    El análisis completo del jugador está disponible en el perfil.
+                  </p>
+                  {username && (
+                    <a
+                      href={`/profile/${encodeURIComponent(username)}`}
+                      className="inline-block rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-600/40 transition"
+                    >
+                      Ver análisis completo del jugador →
+                    </a>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">No hay partida seleccionada.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Markdown renderer ────────────────────────────────────────────────────────
+
+function MarkdownText({ text }: { text: string }) {
+  const lines = text.split('\n')
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        if (line.startsWith('### '))
+          return <p key={i} className="font-semibold text-white mt-2">{renderInline(line.slice(4))}</p>
+        if (line.startsWith('## '))
+          return <p key={i} className="font-semibold text-white mt-2">{renderInline(line.slice(3))}</p>
+        if (line.startsWith('- ') || line.startsWith('• '))
+          return (
+            <div key={i} className="flex gap-2">
+              <span className="text-gray-500 shrink-0">•</span>
+              <span>{renderInline(line.slice(2))}</span>
+            </div>
+          )
+        if (line.trim() === '') return <div key={i} className="h-1" />
+        return <p key={i}>{renderInline(line)}</p>
+      })}
+    </div>
+  )
+}
+
+function renderInline(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i}>{part.slice(1, -1)}</em>
+    return part
+  })
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function InfoRow({ label, value, elo }: { label: string; value: string; elo?: number }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-gray-500 shrink-0">{label}</span>
+      <span className="text-gray-300 text-right truncate">
+        {value}{elo ? <span className="ml-1 text-gray-500 text-xs">({elo})</span> : null}
+      </span>
     </div>
   )
 }

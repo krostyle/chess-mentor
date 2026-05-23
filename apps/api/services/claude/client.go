@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"chess-mentor/api/models"
+	"chess-mentor/api/services/stats"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -59,6 +60,7 @@ Métricas del jugador:
 		return "", fmt.Errorf("claude API error: %w", err)
 	}
 
+	stats.Global.Record("generate_profile", int64(msg.Usage.InputTokens), int64(msg.Usage.OutputTokens))
 	return extractText(msg.Content), nil
 }
 
@@ -133,6 +135,7 @@ Un concepto o patrón específico que el jugador analizado (%s) debería trabaja
 		return models.ExplainResponse{}, fmt.Errorf("claude API error: %w", err)
 	}
 
+	stats.Global.Record("explain_move", int64(msg.Usage.InputTokens), int64(msg.Usage.OutputTokens))
 	return models.ExplainResponse{
 		Explanation: extractText(msg.Content),
 	}, nil
@@ -219,6 +222,7 @@ Escribe un análisis narrativo de 3-4 párrafos:
 	if err != nil {
 		return "", fmt.Errorf("claude API error: %w", err)
 	}
+	stats.Global.Record("analyze_game", int64(msg.Usage.InputTokens), int64(msg.Usage.OutputTokens))
 	return extractText(msg.Content), nil
 }
 

@@ -20,6 +20,7 @@ func main() {
 	port := envOr("PORT", "8080")
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	clerkKey := os.Getenv("CLERK_SECRET_KEY")
+	adminKey := os.Getenv("ADMIN_KEY")
 	lichessBase := envOr("LICHESS_API_BASE", "https://lichess.org/api")
 	sfPath := envOr("STOCKFISH_PATH", "stockfish")
 
@@ -61,6 +62,8 @@ func main() {
 	ai.POST("/game/analyze", handlers.AnalyzeGame(sfEngine))
 	ai.POST("/game/narrative", handlers.NarrateGame(claudeClient))
 	ai.POST("/explain", handlers.ExplainMove(claudeClient))
+
+	r.GET("/api/admin/usage", handlers.GetUsage(adminKey))
 
 	slog.Info("chess-mentor API starting", "port", port)
 	if err := r.Run(":" + port); err != nil {

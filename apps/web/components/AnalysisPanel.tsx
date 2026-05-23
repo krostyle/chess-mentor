@@ -77,9 +77,20 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove }:
       {activeTab === 'profile' && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-300">Análisis del GM</h3>
-          <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">
-            {profileNarrative || 'Cargando análisis…'}
-          </p>
+          {profileNarrative ? (
+            <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+              {profileNarrative}
+            </p>
+          ) : (
+            <div className="rounded-lg border border-dashed border-gray-700 p-4 text-center space-y-2">
+              <p className="text-sm text-gray-500">
+                El análisis narrativo solo está disponible en el perfil completo.
+              </p>
+              <p className="text-xs text-gray-600">
+                Usa <span className="text-indigo-400">Analizar perfil completo →</span> para obtener un resumen del GM con tus patrones de juego.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -124,7 +135,10 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove }:
           )}
 
           {loading && (
-            <p className="text-xs text-gray-500 animate-pulse">El GM está analizando…</p>
+            <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3">
+              <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+              <span className="text-xs text-gray-400">El GM está analizando el movimiento…</span>
+            </div>
           )}
 
           {explanation && (

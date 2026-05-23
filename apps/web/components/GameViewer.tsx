@@ -69,7 +69,7 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
     >
       {/* Left column: board + controls */}
       <div className="space-y-3">
-        <GameSelector games={games} onSelect={handleGameSelect} />
+        <GameSelector games={games} username={username} onSelect={handleGameSelect} />
 
         <div className="relative overflow-hidden rounded-xl">
           <Chessboard

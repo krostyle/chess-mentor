@@ -6,26 +6,26 @@ type OpeningStat struct {
 }
 
 type TimePressureMetrics struct {
-	AvgTimePerMoveSeconds        float64 `json:"avg_time_per_move_seconds"`
-	AvgTimeInCriticalPositions   float64 `json:"avg_time_in_critical_positions"`
-	ErrorRateUnder10s            float64 `json:"error_rate_under_10s"`
+	AvgTimePerMoveSeconds      float64 `json:"avg_time_per_move_seconds"`
+	AvgTimeInCriticalPositions float64 `json:"avg_time_in_critical_positions"`
+	ErrorRateUnder10s          float64 `json:"error_rate_under_10s"`
 }
 
 type MistakePatterns struct {
-	Moves20To30LossRate         float64 `json:"moves_20_to_30_loss_rate"`
-	ImpulsiveErrorsPercentage   float64 `json:"impulsive_errors_percentage"`
+	Moves20To30LossRate       float64 `json:"moves_20_to_30_loss_rate"`
+	ImpulsiveErrorsPercentage float64 `json:"impulsive_errors_percentage"`
 }
 
 type PlayerMetrics struct {
-	Username                 string                     `json:"username"`
-	Elo                      int                        `json:"elo"`
-	TotalGamesAnalyzed       int                        `json:"total_games_analyzed"`
-	OpeningStats             map[string]OpeningStat     `json:"opening_stats"`
-	TimePressure             TimePressureMetrics        `json:"time_pressure"`
-	MistakePatterns          MistakePatterns            `json:"mistake_patterns"`
-	PerformanceWithAdvantage float64                    `json:"performance_with_advantage"`
-	PerformanceInDisadvantage float64                   `json:"performance_in_disadvantage"`
-	MostCommonErrorType      string                     `json:"most_common_error_type"`
+	Username                  string                 `json:"username"`
+	Elo                       int                    `json:"elo"`
+	TotalGamesAnalyzed        int                    `json:"total_games_analyzed"`
+	OpeningStats              map[string]OpeningStat `json:"opening_stats"`
+	TimePressure              TimePressureMetrics    `json:"time_pressure"`
+	MistakePatterns           MistakePatterns        `json:"mistake_patterns"`
+	PerformanceWithAdvantage  float64                `json:"performance_with_advantage"`
+	PerformanceInDisadvantage float64                `json:"performance_in_disadvantage"`
+	MostCommonErrorType       string                 `json:"most_common_error_type"`
 }
 
 type Move struct {
@@ -34,6 +34,7 @@ type Move struct {
 	FENAfter         string  `json:"fen_after"`
 	MoveNumber       int     `json:"move_number"`
 	Color            string  `json:"color"`
+	GamePhase        string  `json:"game_phase,omitempty"`
 	TimeSpentSeconds float64 `json:"time_spent_seconds,omitempty"`
 	StockfishEval    float64 `json:"stockfish_eval,omitempty"`
 	IsMistake        bool    `json:"is_mistake,omitempty"`
@@ -45,6 +46,8 @@ type Game struct {
 	ID          string `json:"id"`
 	White       string `json:"white"`
 	Black       string `json:"black"`
+	WhiteElo    int    `json:"white_elo,omitempty"`
+	BlackElo    int    `json:"black_elo,omitempty"`
 	Result      string `json:"result"`
 	Date        string `json:"date"`
 	Opening     string `json:"opening"`
@@ -71,7 +74,7 @@ type ExplainRequest struct {
 }
 
 type ExplainResponse struct {
-	Explanation          string   `json:"explanation"`
-	Concepts             []string `json:"concepts,omitempty"`
+	Explanation           string   `json:"explanation"`
+	Concepts              []string `json:"concepts,omitempty"`
 	SuggestedAlternatives []string `json:"suggested_alternatives,omitempty"`
 }

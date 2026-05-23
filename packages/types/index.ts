@@ -32,6 +32,7 @@ export interface Move {
   fen_after: string
   move_number: number
   color: 'white' | 'black'
+  game_phase?: 'opening' | 'middlegame' | 'endgame'
   time_spent_seconds?: number
   stockfish_eval?: number
   is_mistake?: boolean
@@ -43,6 +44,8 @@ export interface Game {
   id: string
   white: string
   black: string
+  white_elo?: number
+  black_elo?: number
   result: '1-0' | '0-1' | '1/2-1/2'
   date: string
   opening: string

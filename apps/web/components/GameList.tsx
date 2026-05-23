@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Game } from '@/types'
-import { getGameById } from '@/lib/api'
+import { analyzeGame } from '@/lib/api'
 import { GameViewer } from './GameViewer'
 
 interface Props {
@@ -23,7 +23,7 @@ export function GameList({ username, games }: Props) {
     setLoadingGame(true)
     setLoadError(false)
 
-    const full = await getGameById(game.id)
+    const full = await analyzeGame(game.pgn)
     if (full) {
       setLoadedGame(full)
     } else {

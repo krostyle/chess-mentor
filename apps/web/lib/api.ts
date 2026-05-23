@@ -37,10 +37,14 @@ export async function getGames(username: string): Promise<Game[]> {
   }
 }
 
-// Full game with Stockfish evals at depth 15. Called client-side on demand.
-export async function getGameById(gameId: string): Promise<Game | null> {
+// Sends the PGN we already have to Railway for Stockfish annotation.
+// No second Lichess call needed — avoids 404s on re-fetch.
+export async function analyzeGame(pgn: string): Promise<Game | null> {
   try {
-    const res = await fetch(`${apiUrl()}/api/game/${encodeURIComponent(gameId)}`, {
+    const res = await fetch(`${apiUrl()}/api/game/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pgn }),
       signal: AbortSignal.timeout(60_000),
     })
     if (!res.ok) return null

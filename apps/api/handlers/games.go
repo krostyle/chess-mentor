@@ -42,24 +42,28 @@ func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 	}
 }
 
-func GetGame(lichessClient *lichess.Client, sfEngine *stockfish.Engine) gin.HandlerFunc {
+// AnalyzeGame receives a PGN in the request body and returns the game
+// annotated with Stockfish evaluations. No second Lichess call needed.
+func AnalyzeGame(sfEngine *stockfish.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		gameID := c.Param("game_id")
-
-		pgn, err := lichessClient.FetchGame(c.Request.Context(), gameID)
-		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "no se pudo obtener la partida"})
+		var body struct {
+			PGN string `json:"pgn" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "pgn requerido"})
 			return
 		}
 
 		analyzer := chessanalyzer.NewAnalyzer()
-		game, err := analyzer.AnalyzeGame(pgn)
+		game, err := analyzer.AnalyzeGame(body.PGN)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error al procesar la partida"})
+			slog.Error("AnalyzeGame: parse failed", "err", err)
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "PGN inválido"})
 			return
 		}
 
 		game = chessanalyzer.AnnotateGame(c.Request.Context(), game, sfEngine, stockfishDepthGame)
+		slog.Info("AnalyzeGame: done", "id", game.ID, "moves", len(game.Moves))
 		c.JSON(http.StatusOK, game)
 	}
 }

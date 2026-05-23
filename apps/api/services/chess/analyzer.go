@@ -119,6 +119,7 @@ func buildMoves(game *chess.Game, elapsed []float64) []models.Move {
 	positions := game.Positions()
 	chessMoves := game.Moves()
 	moves := make([]models.Move, 0, len(chessMoves))
+	notation := chess.AlgebraicNotation{}
 
 	for i, m := range chessMoves {
 		color := "white"
@@ -133,8 +134,10 @@ func buildMoves(game *chess.Game, elapsed []float64) []models.Move {
 		if i < len(elapsed) {
 			timeSpent = elapsed[i]
 		}
+		// AlgebraicNotation.Encode requires the position BEFORE the move
+		san := notation.Encode(positions[i], m)
 		moves = append(moves, models.Move{
-			SAN:              m.String(),
+			SAN:              san,
 			UCI:              moveToUCI(m),
 			FENAfter:         fenAfter,
 			MoveNumber:       i + 1,

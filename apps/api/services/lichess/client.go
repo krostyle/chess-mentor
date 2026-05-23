@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +26,8 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
+const userAgent = "chess-mentor/1.0 (https://github.com/krostyle/chess-mentor)"
+
 // FetchGames downloads up to max games for the given username in PGN format.
 // Returns one PGN string per game.
 func (c *Client) FetchGames(ctx context.Context, username string, max int) ([]string, error) {
@@ -35,15 +38,23 @@ func (c *Client) FetchGames(ctx context.Context, username string, max int) ([]st
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/x-chess-pgn")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		slog.Error("lichess FetchGames request failed", "username", username, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	slog.Info("lichess FetchGames response", "username", username, "status", resp.StatusCode, "url", url)
+
 	if resp.StatusCode == http.StatusNotFound {
+		slog.Warn("lichess user not found", "username", username)
 		return nil, nil
+	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("lichess rate limit hit (429)")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("lichess API returned status %d", resp.StatusCode)
@@ -51,7 +62,9 @@ func (c *Client) FetchGames(ctx context.Context, username string, max int) ([]st
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
-	return splitPGNs(scanner), nil
+	pgns := splitPGNs(scanner)
+	slog.Info("lichess FetchGames parsed", "username", username, "count", len(pgns))
+	return pgns, nil
 }
 
 // FetchGame downloads a single game by ID in PGN format.
@@ -63,12 +76,16 @@ func (c *Client) FetchGame(ctx context.Context, gameID string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Accept", "application/x-chess-pgn")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		slog.Error("lichess FetchGame request failed", "game_id", gameID, "err", err)
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	slog.Info("lichess FetchGame response", "game_id", gameID, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("lichess API returned status %d", resp.StatusCode)

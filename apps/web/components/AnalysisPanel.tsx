@@ -1,9 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import type { Move } from '@chess-mentor/types'
+import { explainMove } from '@/lib/api'
 
 interface Props {
+  profileNarrative: string
   profileSummary: string
+  currentMove: Move | null
 }
 
 const QUICK_QUESTIONS = [
@@ -12,21 +16,48 @@ const QUICK_QUESTIONS = [
   '¿Qué debería estudiar?',
 ]
 
-export function AnalysisPanel({ profileSummary }: Props) {
-  const [activeTab, setActiveTab] = useState<'move' | 'profile'>('profile')
-  const [answer, setAnswer] = useState<string | null>(null)
+export function AnalysisPanel({ profileNarrative, profileSummary, currentMove }: Props) {
+  const [activeTab, setActiveTab] = useState<'profile' | 'move'>('profile')
+  const [explanation, setExplanation] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function askQuestion(question: string) {
+    if (!currentMove) return
     setLoading(true)
-    setAnswer(null)
-    await new Promise((r) => setTimeout(r, 800))
-    setAnswer(`(Respuesta de ejemplo para: "${question}") — integración con backend pendiente.`)
+    setExplanation(null)
+
+    const resp = await explainMove({
+      fen: currentMove.fen_after,
+      move: currentMove.san,
+      stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
+      game_phase: currentMove.game_phase ?? 'middlegame',
+      player_profile_summary: `${profileSummary}. Pregunta: ${question}`,
+    })
+
+    setExplanation(resp?.explanation ?? 'No se pudo obtener explicación.')
+    setLoading(false)
+  }
+
+  async function explainCurrentMove() {
+    if (!currentMove) return
+    setLoading(true)
+    setExplanation(null)
+
+    const resp = await explainMove({
+      fen: currentMove.fen_after,
+      move: currentMove.san,
+      stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
+      game_phase: currentMove.game_phase ?? 'middlegame',
+      player_profile_summary: profileSummary,
+    })
+
+    setExplanation(resp?.explanation ?? 'No se pudo obtener explicación.')
     setLoading(false)
   }
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4">
+    <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4 h-full">
+      {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-800 pb-3">
         {(['profile', 'move'] as const).map((tab) => (
           <button
@@ -46,29 +77,59 @@ export function AnalysisPanel({ profileSummary }: Props) {
       {activeTab === 'profile' && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-300">Análisis del GM</h3>
-          <p className="text-sm text-gray-400 leading-relaxed">{profileSummary}</p>
+          <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+            {profileNarrative || 'Cargando análisis…'}
+          </p>
         </div>
       )}
 
       {activeTab === 'move' && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-300">Pregunta sobre este movimiento</h3>
-          <div className="flex flex-wrap gap-2">
-            {QUICK_QUESTIONS.map((q) => (
-              <button
-                key={q}
-                onClick={() => askQuestion(q)}
-                disabled={loading}
-                className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-400 transition hover:border-indigo-500 hover:text-indigo-400 disabled:opacity-40"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-          {loading && <p className="text-xs text-gray-500 animate-pulse">El GM está pensando...</p>}
-          {answer && (
+        <div className="space-y-4">
+          {currentMove ? (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-mono text-white">{currentMove.san}</span>
+                  <span className="ml-2 text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
+                  {currentMove.time_spent_seconds != null && currentMove.time_spent_seconds > 0 && (
+                    <span className="ml-2 text-xs text-gray-600">
+                      {currentMove.time_spent_seconds.toFixed(1)}s
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={explainCurrentMove}
+                  disabled={loading}
+                  className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                >
+                  Explicar
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {QUICK_QUESTIONS.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => askQuestion(q)}
+                    disabled={loading}
+                    className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-400 transition hover:border-indigo-500 hover:text-indigo-400 disabled:opacity-40"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Selecciona un movimiento en el tablero para analizarlo.</p>
+          )}
+
+          {loading && (
+            <p className="text-xs text-gray-500 animate-pulse">El GM está analizando…</p>
+          )}
+
+          {explanation && (
             <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
-              {answer}
+              {explanation}
             </div>
           )}
         </div>

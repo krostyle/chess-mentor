@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,6 +14,8 @@ import (
 )
 
 func main() {
+	loadEnvFile(".env.local")
+
 	port := envOr("PORT", "8080")
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	lichessBase := envOr("LICHESS_API_BASE", "https://lichess.org/api")
@@ -24,7 +28,6 @@ func main() {
 	claudeClient := claude.NewClient(apiKey)
 
 	r := gin.Default()
-
 	r.Use(corsMiddleware())
 
 	r.GET("/api/health", handlers.Health)
@@ -37,6 +40,33 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		slog.Error("server error", "err", err)
 		os.Exit(1)
+	}
+}
+
+// loadEnvFile reads key=value pairs from file and sets them as env vars
+// if they are not already set. Ignores blank lines and # comments.
+func loadEnvFile(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return // file is optional
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if os.Getenv(k) == "" {
+			os.Setenv(k, v)
+		}
 	}
 }
 

@@ -1,8 +1,6 @@
 import { getProfile } from '@/lib/api'
-import { AnalysisPanel } from '@/components/AnalysisPanel'
 import { PlayerProfile } from '@/components/PlayerProfile'
-import { GameSelector } from '@/components/GameSelector'
-import { ChessBoardWrapper } from '@/components/ChessBoard'
+import { GameViewer } from '@/components/GameViewer'
 
 interface Props {
   params: Promise<{ username: string }>
@@ -17,37 +15,37 @@ export default async function ProfilePage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center">
         <div className="text-center space-y-2">
           <p className="text-xl font-semibold">Usuario no encontrado</p>
-          <p className="text-gray-400">Verifica que el nombre de usuario de Lichess sea correcto.</p>
+          <p className="text-gray-400">
+            Verifica que el nombre de usuario de Lichess sea correcto y que tenga partidas públicas.
+          </p>
           <a href="/" className="text-indigo-400 hover:underline text-sm">← Volver</a>
         </div>
       </main>
     )
   }
 
-  const firstGame = profile.games[0] ?? null
-
   return (
     <main className="min-h-screen p-4 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-4">
+      <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">{profile.username}</h1>
-            <p className="text-gray-400 text-sm">ELO {profile.elo} · {profile.metrics.total_games_analyzed} partidas analizadas</p>
+            <p className="text-gray-400 text-sm">
+              ELO {profile.elo} · {profile.metrics.total_games_analyzed} partidas analizadas
+            </p>
           </div>
           <a href="/" className="text-sm text-indigo-400 hover:underline">← Nueva búsqueda</a>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="space-y-4">
-            <GameSelector games={profile.games} />
-            <ChessBoardWrapper game={firstGame} profileSummary={profile.narrative} />
-          </div>
+        <PlayerProfile profile={profile} />
 
-          <div className="space-y-4">
-            <PlayerProfile profile={profile} />
-            <AnalysisPanel profileSummary={profile.narrative} />
-          </div>
-        </div>
+        {profile.games.length > 0 && (
+          <GameViewer
+            games={profile.games}
+            profileSummary={profile.metrics.most_common_error_type}
+            profileNarrative={profile.narrative}
+          />
+        )}
       </div>
     </main>
   )

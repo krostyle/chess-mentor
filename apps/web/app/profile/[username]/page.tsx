@@ -44,6 +44,7 @@ export default async function ProfilePage({ params }: Props) {
             games={profile.games}
             profileSummary={profile.metrics.most_common_error_type}
             profileNarrative={profile.narrative}
+            username={username}
           />
         )}
       </div>

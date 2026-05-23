@@ -67,19 +67,22 @@ func (c *Client) ExplainMove(ctx context.Context, req models.ExplainRequest) (mo
 	userMsg := fmt.Sprintf(`Analiza el movimiento %s en la posición FEN: %s
 Evaluación Stockfish: %s | Fase: %s | Perfil: %s
 
+Al referirte a piezas, usa siempre su nombre en español (Rey, Reina, Torre, Alfil, Caballo, Peón) seguido de la casilla. Por ejemplo: "el Caballo de g1 va a f3" o "la Torre captura en e8". Nunca uses solo coordenadas como "g1f3".
+
 Responde EXACTAMENTE con estas 5 secciones en markdown, sin agregar otras:
 
 ## Explicación
 2-3 oraciones explicando qué hace este movimiento y por qué es bueno o malo.
 
-## ¿Por qué no otra jugada?
-Menciona 1-2 alternativas concretas y por qué este movimiento es mejor o peor que ellas.
+## Jugadas alternativas
+Menciona 1-2 jugadas que también se podían considerar en esta posición. Para cada una, explica brevemente qué hubiera conseguido — sin juzgar si la jugada elegida fue mejor o peor, solo muestra las opciones disponibles.
 
 ## Plan del jugador
-¿Qué idea o plan concreto persigue quien jugó este movimiento?
+¿Qué idea o plan concreto persigue quien jugó este movimiento? ¿Qué amenaza o estructura busca crear?
 
 ## Plan del contrincante
-¿Qué debe intentar hacer el contrincante en respuesta? ¿Cuál es su mejor continuación?
+Si esta jugada es del contrincante: ¿qué amenaza o idea activa con este movimiento? ¿Cuál es su plan a corto y largo plazo?
+Si esta jugada es del jugador analizado: ¿cómo debería responder el contrincante? ¿Qué plan tiene disponible?
 
 ## ¿Qué estudiar?
 Un concepto o patrón específico que el jugador debería trabajar basándose en esta posición.`,

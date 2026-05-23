@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import type { PlayerProfile as Profile } from '@/types'
 
@@ -9,6 +10,7 @@ interface Props {
 
 export function PlayerProfile({ profile }: Props) {
   const { metrics } = profile
+  const [expanded, setExpanded] = useState(false)
 
   const radarData = [
     { subject: 'Aperturas', value: Math.round(averageWinRate(metrics.opening_stats) * 100) },
@@ -53,6 +55,28 @@ export function PlayerProfile({ profile }: Props) {
         <Stat label="Con ventaja" value={`${Math.round(metrics.performance_with_advantage * 100)}%`} />
         <Stat label="En desventaja" value={`${Math.round(metrics.performance_in_disadvantage * 100)}%`} />
       </div>
+
+      {profile.narrative && (
+        <div className="space-y-2 border-t border-gray-800 pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Análisis del GM</p>
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition"
+            >
+              {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
+            </button>
+          </div>
+          <div className={`text-sm text-gray-300 leading-relaxed space-y-2 overflow-hidden transition-all ${expanded ? '' : 'max-h-24'}`}>
+            {profile.narrative.split('\n').filter(Boolean).map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+          {!expanded && (
+            <div className="h-6 bg-gradient-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Move, Game } from '@/types'
 import { explainMove, narrateGame } from '@/lib/api'
-import { uciLineToPairs } from './GameViewer'
+import { uciLineToSteps } from './GameViewer'
 
 interface Props {
   profileNarrative: string
@@ -14,23 +14,27 @@ interface Props {
   playerColor?: 'white' | 'black'
   fenBeforeCurrentMove?: string
   onJumpToMove?: (moveIndex: number) => void
+  onPreviewFen?: (fen: string | null) => void
 }
 
 const SECTIONS = [
   'Explicación',
-  '¿Por qué no otra jugada?',
+  'Jugadas alternativas',
   'Plan del jugador',
   'Plan del contrincante',
   '¿Qué estudiar?',
 ]
 
-export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, playerColor, fenBeforeCurrentMove, onJumpToMove }: Props) {
+export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, playerColor, fenBeforeCurrentMove, onJumpToMove, onPreviewFen }: Props) {
   const [activeTab, setActiveTab] = useState<'game' | 'move'>('move')
-  const [explanation, setExplanation] = useState<string | null>(null)
+  const [analysisCache, setAnalysisCache] = useState<Record<string, string>>({})
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
   const [loading, setLoading] = useState(false)
   const [gameNarrative, setGameNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
+
+  const moveKey = currentMove?.uci ?? null
+  const cachedAnalysis = moveKey ? (analysisCache[moveKey] ?? null) : null
 
   async function analyzeFullGame() {
     if (!game || !username) return
@@ -42,24 +46,25 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
   }
 
   async function explainCurrentMove() {
-    if (!currentMove) return
+    if (!currentMove || !moveKey) return
     setLoading(true)
-    setExplanation(null)
     setActiveSection(SECTIONS[0])
 
+    const isPlayerMove = currentMove.color === (playerColor ?? 'white')
     const resp = await explainMove({
       fen: currentMove.fen_after,
       move: currentMove.san,
       stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
       game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: `Jugador con ${playerColor === 'black' ? 'negras' : 'blancas'}. ${profileSummary || 'Sin perfil analizado.'}`,
+      player_profile_summary: `Jugador con ${playerColor === 'black' ? 'negras' : 'blancas'}. Esta jugada es del ${isPlayerMove ? 'jugador analizado' : 'contrincante'}. ${profileSummary || 'Sin perfil analizado.'}`,
     })
 
-    setExplanation(resp?.explanation ?? null)
+    if (resp?.explanation) {
+      setAnalysisCache(prev => ({ ...prev, [moveKey]: resp.explanation }))
+    }
     setLoading(false)
   }
 
-  // Parse markdown into sections keyed by ## heading
   function parseSections(md: string): Record<string, string> {
     const result: Record<string, string> = {}
     const parts = md.split(/^## /m)
@@ -73,7 +78,7 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
     return result
   }
 
-  const sections = explanation ? parseSections(explanation) : {}
+  const sections = cachedAnalysis ? parseSections(cachedAnalysis) : {}
   const sectionText = sections[activeSection] ?? ''
 
   return (
@@ -115,24 +120,31 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
                   disabled={loading}
                   className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
                 >
-                  Explicar
+                  {cachedAnalysis ? 'Volver a analizar' : 'Analizar'}
                 </button>
               </div>
 
-              {/* Best move + variation in SAN */}
+              {/* Best move + variation — clickable to preview on board */}
               {currentMove.best_move && fenBeforeCurrentMove && (() => {
                 const line = currentMove.best_line ?? [currentMove.best_move]
-                const sanLine = uciLineToPairs(fenBeforeCurrentMove, line)
-                if (sanLine.length === 0) return null
+                const steps = uciLineToSteps(fenBeforeCurrentMove, line)
+                if (steps.length === 0) return null
                 return (
                   <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 space-y-1">
-                    <p className="text-xs text-gray-500">Mejor continuación según Stockfish</p>
+                    <p className="text-xs text-gray-500">Mejor continuación según Stockfish — haz clic para ver en el tablero</p>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded bg-green-900/60 px-2 py-0.5 font-mono text-xs text-green-300 font-semibold">
-                        {sanLine[0]}
-                      </span>
-                      {sanLine.slice(1).map((san, i) => (
-                        <span key={i} className="font-mono text-xs text-gray-400">{san}</span>
+                      {steps.map((step, i) => (
+                        <button
+                          key={i}
+                          onClick={() => onPreviewFen?.(step.fen)}
+                          className={`rounded font-mono text-xs transition px-1.5 py-0.5 ${
+                            i === 0
+                              ? 'bg-green-900/60 text-green-300 hover:bg-green-800/80 font-semibold'
+                              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                          }`}
+                        >
+                          {step.san}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -150,7 +162,7 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
             </div>
           )}
 
-          {explanation && !loading && (
+          {cachedAnalysis && !loading && (
             <div className="space-y-3">
               {/* Section pills */}
               <div className="flex flex-wrap gap-1.5">

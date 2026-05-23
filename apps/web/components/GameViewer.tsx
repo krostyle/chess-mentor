@@ -21,10 +21,10 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
   const [selectedGame, setSelectedGame] = useState<Game>(games[0])
   const [moveIndex, setMoveIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [previewFen, setPreviewFen] = useState<string | null>(null)
 
   const moves: Move[] = selectedGame?.moves ?? []
 
-  // Determine player color for board orientation and AI context
   const playerColor: 'white' | 'black' =
     selectedGame && username && selectedGame.white.toLowerCase() === username.toLowerCase()
       ? 'white'
@@ -39,7 +39,6 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
     return moves[moveIndex - 1]?.fen_after ?? 'start'
   }, [moves, moveIndex])
 
-  // FEN of the position BEFORE the current move — needed to convert best_move UCI→SAN
   const fenBeforeCurrentMove: string =
     moveIndex <= 1 ? START_FEN : (moves[moveIndex - 2]?.fen_after ?? START_FEN)
 
@@ -48,12 +47,12 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
   function handleGameSelect(game: Game) {
     setSelectedGame(game)
     setMoveIndex(0)
-    // Auto-orient board to player's color in the new game
     setFlipped(false)
+    setPreviewFen(null)
   }
 
-  function handlePrev() { setMoveIndex((i) => Math.max(0, i - 1)) }
-  function handleNext() { setMoveIndex((i) => Math.min(moves.length, i + 1)) }
+  function handlePrev() { setPreviewFen(null); setMoveIndex((i) => Math.max(0, i - 1)) }
+  function handleNext() { setPreviewFen(null); setMoveIndex((i) => Math.min(moves.length, i + 1)) }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'ArrowLeft') handlePrev()
@@ -74,12 +73,22 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
 
         <div className="relative overflow-hidden rounded-xl">
           <Chessboard
-            position={currentFen()}
+            position={previewFen ?? currentFen()}
             boardOrientation={boardOrientation}
             arePiecesDraggable={false}
             customBoardStyle={{ borderRadius: '0.75rem' }}
           />
-          {/* Flip button */}
+          {previewFen && (
+            <div className="absolute top-2 left-2 flex items-center gap-2 rounded-md bg-gray-900/90 px-3 py-1.5 backdrop-blur">
+              <span className="text-xs text-indigo-300">Variante Stockfish</span>
+              <button
+                onClick={() => setPreviewFen(null)}
+                className="text-xs text-gray-400 hover:text-white transition"
+              >
+                × Salir
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setFlipped((f) => !f)}
             title="Girar tablero"
@@ -97,7 +106,11 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
           onNext={handleNext}
         />
 
-        <MoveList moves={moves} currentIndex={moveIndex} onSelect={setMoveIndex} />
+        <MoveList
+          moves={moves}
+          currentIndex={moveIndex}
+          onSelect={(idx) => { setPreviewFen(null); setMoveIndex(idx) }}
+        />
       </div>
 
       {/* Right column: analysis */}
@@ -110,7 +123,8 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
           username={username}
           playerColor={playerColor}
           fenBeforeCurrentMove={fenBeforeCurrentMove}
-          onJumpToMove={setMoveIndex}
+          onJumpToMove={(idx) => { setPreviewFen(null); setMoveIndex(idx) }}
+          onPreviewFen={setPreviewFen}
         />
       </div>
     </div>
@@ -187,9 +201,9 @@ export function uciToSan(fen: string, uci: string): string {
   }
 }
 
-export function uciLineToPairs(startFen: string, ucis: string[]): string[] {
+export function uciLineToSteps(startFen: string, ucis: string[]): { san: string; fen: string }[] {
   const chess = new Chess(startFen)
-  const sans: string[] = []
+  const steps: { san: string; fen: string }[] = []
   for (const uci of ucis) {
     try {
       const from = uci.slice(0, 2)
@@ -197,10 +211,14 @@ export function uciLineToPairs(startFen: string, ucis: string[]): string[] {
       const promotion = uci.length === 5 ? uci[4] : undefined
       const move = chess.move({ from, to, promotion })
       if (!move) break
-      sans.push(move.san)
+      steps.push({ san: move.san, fen: chess.fen() })
     } catch {
       break
     }
   }
-  return sans
+  return steps
+}
+
+export function uciLineToPairs(startFen: string, ucis: string[]): string[] {
+  return uciLineToSteps(startFen, ucis).map(s => s.san)
 }

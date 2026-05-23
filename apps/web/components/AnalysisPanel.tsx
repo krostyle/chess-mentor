@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Move, Game } from '@/types'
 import { explainMove, narrateGame } from '@/lib/api'
 import { uciLineToSteps } from './GameViewer'
@@ -33,6 +33,10 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
   const [loading, setLoading] = useState(false)
   const [gameNarrative, setGameNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
+
+  useEffect(() => {
+    setGameNarrative(null)
+  }, [game?.id])
 
   const moveKey = currentMove?.uci ?? null
   const cachedAnalysis = moveKey ? (analysisCache[moveKey] ?? null) : null

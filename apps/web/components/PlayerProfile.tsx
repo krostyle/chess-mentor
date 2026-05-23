@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import type { PlayerProfile as Profile } from '@/types'
+import { MarkdownText } from './MarkdownText'
 
 interface Props {
   profile: Profile
@@ -67,10 +68,8 @@ export function PlayerProfile({ profile }: Props) {
               {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
             </button>
           </div>
-          <div className={`text-sm text-gray-300 leading-relaxed space-y-2 overflow-hidden transition-all ${expanded ? '' : 'max-h-24'}`}>
-            {profile.narrative.split('\n').filter(Boolean).map((line, i) => (
-              <p key={i}>{line}</p>
-            ))}
+          <div className={`text-sm text-gray-300 leading-relaxed overflow-hidden transition-all ${expanded ? '' : 'max-h-24'}`}>
+            <MarkdownText text={profile.narrative} />
           </div>
           {!expanded && (
             <div className="h-6 bg-gradient-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />

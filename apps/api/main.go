@@ -11,6 +11,7 @@ import (
 	"chess-mentor/api/handlers"
 	"chess-mentor/api/services/claude"
 	"chess-mentor/api/services/lichess"
+	"chess-mentor/api/services/stockfish"
 )
 
 func main() {
@@ -19,6 +20,7 @@ func main() {
 	port := envOr("PORT", "8080")
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	lichessBase := envOr("LICHESS_API_BASE", "https://lichess.org/api")
+	sfPath := envOr("STOCKFISH_PATH", "stockfish")
 
 	if apiKey == "" {
 		slog.Warn("ANTHROPIC_API_KEY not set — Claude features will be unavailable")
@@ -27,13 +29,24 @@ func main() {
 	lichessClient := lichess.NewClient(lichessBase)
 	claudeClient := claude.NewClient(apiKey)
 
+	// Stockfish is optional — if the binary is unavailable, the app keeps working
+	// without move evaluations.
+	sfEngine, err := stockfish.NewEngine(sfPath, 3)
+	if err != nil {
+		slog.Warn("Stockfish unavailable — move evals will be skipped", "err", err)
+		sfEngine = nil
+	} else {
+		slog.Info("Stockfish ready", "path", sfPath, "workers", 3)
+		defer sfEngine.Close()
+	}
+
 	r := gin.Default()
 	r.Use(corsMiddleware())
 
 	r.GET("/api/health", handlers.Health)
-	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, claudeClient))
+	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, claudeClient, sfEngine))
 	r.GET("/api/games/:username", handlers.GetGames(lichessClient))
-	r.GET("/api/game/:game_id", handlers.GetGame(lichessClient))
+	r.GET("/api/game/:game_id", handlers.GetGame(lichessClient, sfEngine))
 	r.POST("/api/explain", handlers.ExplainMove(claudeClient))
 
 	slog.Info("chess-mentor API starting", "port", port)
@@ -43,12 +56,10 @@ func main() {
 	}
 }
 
-// loadEnvFile reads key=value pairs from file and sets them as env vars
-// if they are not already set. Ignores blank lines and # comments.
 func loadEnvFile(path string) {
 	f, err := os.Open(path)
 	if err != nil {
-		return // file is optional
+		return
 	}
 	defer f.Close()
 
@@ -62,10 +73,8 @@ func loadEnvFile(path string) {
 		if !ok {
 			continue
 		}
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-		if os.Getenv(k) == "" {
-			os.Setenv(k, v)
+		if os.Getenv(strings.TrimSpace(k)) == "" {
+			os.Setenv(strings.TrimSpace(k), strings.TrimSpace(v))
 		}
 	}
 }

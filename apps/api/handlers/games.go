@@ -5,9 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"chess-mentor/api/services/chess"
+	chessanalyzer "chess-mentor/api/services/chess"
 	"chess-mentor/api/services/lichess"
+	"chess-mentor/api/services/stockfish"
 )
+
+const stockfishDepthGame = 15
 
 func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -19,7 +22,7 @@ func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 			return
 		}
 
-		analyzer := chess.NewAnalyzer()
+		analyzer := chessanalyzer.NewAnalyzer()
 		games, _, err := analyzer.AnalyzeGames(pgns, username)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error al procesar las partidas"})
@@ -30,7 +33,7 @@ func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 	}
 }
 
-func GetGame(lichessClient *lichess.Client) gin.HandlerFunc {
+func GetGame(lichessClient *lichess.Client, sfEngine *stockfish.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		gameID := c.Param("game_id")
 
@@ -40,13 +43,14 @@ func GetGame(lichessClient *lichess.Client) gin.HandlerFunc {
 			return
 		}
 
-		analyzer := chess.NewAnalyzer()
+		analyzer := chessanalyzer.NewAnalyzer()
 		game, err := analyzer.AnalyzeGame(pgn)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error al procesar la partida"})
 			return
 		}
 
+		game = chessanalyzer.AnnotateGame(c.Request.Context(), game, sfEngine, stockfishDepthGame)
 		c.JSON(http.StatusOK, game)
 	}
 }

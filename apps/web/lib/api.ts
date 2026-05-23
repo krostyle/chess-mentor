@@ -10,6 +10,22 @@ function apiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
 }
 
+export async function narrateProfile(username: string, metrics: PlayerProfile['metrics']): Promise<string | null> {
+  try {
+    const res = await fetch(`${apiUrl()}/api/profile/narrative`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, metrics }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { narrative: string }
+    return data.narrative
+  } catch {
+    return null
+  }
+}
+
 export async function getProfile(username: string): Promise<PlayerProfile | null> {
   try {
     const res = await fetch(

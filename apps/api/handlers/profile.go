@@ -5,18 +5,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"chess-mentor/api/models"
 	chessanalyzer "chess-mentor/api/services/chess"
 	"chess-mentor/api/services/claude"
 	"chess-mentor/api/services/lichess"
 	"chess-mentor/api/services/stockfish"
 )
 
-const stockfishAnnotateN = 5  // annotate this many recent games with Stockfish
+const stockfishAnnotateN = 5
 const stockfishDepthProfile = 12
 
 func GetProfile(
 	lichessClient *lichess.Client,
-	claudeClient *claude.Client,
 	sfEngine *stockfish.Engine,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -39,14 +39,30 @@ func GetProfile(
 			return
 		}
 
-		// Annotate the N most recent games with Stockfish evals.
 		games = chessanalyzer.AnnotateGamesLastN(c.Request.Context(), games, stockfishAnnotateN, sfEngine, stockfishDepthProfile)
 
-		narrative, err := claudeClient.GenerateProfile(c.Request.Context(), metrics)
-		if err != nil {
-			narrative = "Análisis narrativo no disponible temporalmente."
+		c.JSON(http.StatusOK, buildProfile(username, games, metrics, ""))
+	}
+}
+
+// NarrateProfile generates an AI narrative for a player profile on demand.
+func NarrateProfile(claudeClient *claude.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body struct {
+			Username string               `json:"username"`
+			Metrics  models.PlayerMetrics `json:"metrics"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "datos inválidos"})
+			return
 		}
 
-		c.JSON(http.StatusOK, buildProfile(username, games, metrics, narrative))
+		narrative, err := claudeClient.GenerateProfile(c.Request.Context(), body.Metrics)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "no se pudo generar el análisis"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"narrative": narrative})
 	}
 }

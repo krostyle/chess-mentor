@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import type { PlayerProfile as Profile } from '@/types'
 import { MarkdownText } from './MarkdownText'
+import { narrateProfile } from '@/lib/api'
 
 interface Props {
   profile: Profile
@@ -12,6 +13,15 @@ interface Props {
 export function PlayerProfile({ profile }: Props) {
   const { metrics } = profile
   const [expanded, setExpanded] = useState(false)
+  const [narrative, setNarrative] = useState<string>(profile.narrative ?? '')
+  const [narrativeLoading, setNarrativeLoading] = useState(false)
+
+  async function handleGenerateNarrative() {
+    setNarrativeLoading(true)
+    const result = await narrateProfile(profile.username, profile.metrics)
+    if (result) setNarrative(result)
+    setNarrativeLoading(false)
+  }
 
   const radarData = [
     { subject: 'Aperturas', value: Math.round(averageWinRate(metrics.opening_stats) * 100) },
@@ -57,25 +67,49 @@ export function PlayerProfile({ profile }: Props) {
         <Stat label="En desventaja" value={`${Math.round(metrics.performance_in_disadvantage * 100)}%`} />
       </div>
 
-      {profile.narrative && (
-        <div className="space-y-2 border-t border-gray-800 pt-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Análisis del GM</p>
-            <button
-              onClick={() => setExpanded((e) => !e)}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition"
-            >
+      <div className="border-t border-gray-800 pt-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Análisis del GM</p>
+          {narrative && (
+            <button onClick={() => setExpanded((e) => !e)} className="text-xs text-indigo-400 hover:text-indigo-300 transition">
               {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
             </button>
-          </div>
-          <div className={`text-sm text-gray-300 leading-relaxed overflow-hidden transition-all ${expanded ? '' : 'max-h-24'}`}>
-            <MarkdownText text={profile.narrative} />
-          </div>
-          {!expanded && (
-            <div className="h-6 bg-gradient-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />
           )}
         </div>
-      )}
+
+        {!narrative && !narrativeLoading && (
+          <button
+            onClick={handleGenerateNarrative}
+            className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Analizar perfil con IA
+          </button>
+        )}
+
+        {narrativeLoading && (
+          <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3">
+            <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            <span className="text-xs text-gray-400">El GM está analizando tu perfil…</span>
+          </div>
+        )}
+
+        {narrative && !narrativeLoading && (
+          <>
+            <div className={`text-sm text-gray-300 leading-relaxed overflow-hidden transition-all ${expanded ? '' : 'max-h-24'}`}>
+              <MarkdownText text={narrative} />
+            </div>
+            {!expanded && (
+              <div className="h-6 bg-gradient-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />
+            )}
+            <button
+              onClick={handleGenerateNarrative}
+              className="text-xs text-gray-600 hover:text-gray-400 transition"
+            >
+              ↺ Regenerar
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -44,7 +44,8 @@ func main() {
 	r.Use(corsMiddleware())
 
 	r.GET("/api/health", handlers.Health)
-	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, claudeClient, sfEngine))
+	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, sfEngine))
+	r.POST("/api/profile/narrative", handlers.NarrateProfile(claudeClient))
 	r.POST("/api/game/analyze", handlers.AnalyzeGame(sfEngine))
 	r.POST("/api/game/narrative", handlers.NarrateGame(claudeClient))
 	r.POST("/api/explain", handlers.ExplainMove(claudeClient))

@@ -14,16 +14,23 @@ export function GameList({ username, games }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loadedGame, setLoadedGame] = useState<Game | null>(null)
   const [loadingGame, setLoadingGame] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   async function selectGame(game: Game) {
     if (selectedId === game.id) return
     setSelectedId(game.id)
     setLoadedGame(null)
     setLoadingGame(true)
+    setLoadError(false)
 
-    // Fetch the full game with Stockfish evals on demand
     const full = await getGameById(game.id)
-    setLoadedGame(full ?? game) // fallback to basic game if eval fails
+    if (full) {
+      setLoadedGame(full)
+    } else {
+      // fallback: show basic game without Stockfish evals
+      setLoadedGame(game)
+      setLoadError(true)
+    }
     setLoadingGame(false)
   }
 
@@ -113,12 +120,11 @@ export function GameList({ username, games }: Props) {
             </div>
           )}
 
-          {selectedId && loadingGame && (
-            <div className="flex h-full min-h-64 items-center justify-center rounded-xl border border-gray-800 bg-gray-900">
-              <div className="text-center space-y-3">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-                <p className="text-sm text-gray-400">Analizando con Stockfish…</p>
-              </div>
+          {selectedId && loadingGame && <GameLoadingPanel />}
+
+          {loadError && loadedGame && !loadingGame && (
+            <div className="mb-2 rounded-lg border border-yellow-800 bg-yellow-950 px-4 py-2 text-xs text-yellow-300">
+              No se pudo obtener el análisis de Stockfish. Mostrando partida sin evaluaciones.
             </div>
           )}
 
@@ -130,6 +136,38 @@ export function GameList({ username, games }: Props) {
             />
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Loading panel ───────────────────────────────────────────────────────────
+
+function GameLoadingPanel() {
+  const steps = [
+    'Descargando PGN desde Lichess',
+    'Parseando movimientos',
+    'Evaluando posiciones con Stockfish',
+  ]
+  return (
+    <div className="flex h-full min-h-96 items-center justify-center rounded-xl border border-gray-800 bg-gray-900">
+      <div className="text-center space-y-6 px-6">
+        <div className="relative mx-auto h-14 w-14">
+          <div className="absolute inset-0 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+          <div className="absolute inset-2 animate-spin rounded-full border-2 border-indigo-400/30 border-b-transparent" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }} />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-white">Analizando partida</p>
+          <p className="mt-1 text-xs text-gray-500">Puede tardar entre 10 y 30 segundos</p>
+        </div>
+        <ul className="space-y-2 text-left">
+          {steps.map((step) => (
+            <li key={step} className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-indigo-500" />
+              {step}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   )

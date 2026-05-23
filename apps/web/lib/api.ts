@@ -40,7 +40,9 @@ export async function getGames(username: string): Promise<Game[]> {
 // Full game with Stockfish evals at depth 15. Called client-side on demand.
 export async function getGameById(gameId: string): Promise<Game | null> {
   try {
-    const res = await fetch(`${apiUrl()}/api/game/${encodeURIComponent(gameId)}`)
+    const res = await fetch(`${apiUrl()}/api/game/${encodeURIComponent(gameId)}`, {
+      signal: AbortSignal.timeout(60_000),
+    })
     if (!res.ok) return null
     return res.json() as Promise<Game>
   } catch {

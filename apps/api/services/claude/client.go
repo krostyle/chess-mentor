@@ -85,43 +85,19 @@ func (c *Client) ExplainMove(ctx context.Context, req models.ExplainRequest) (mo
 		evalNote = "positivo = ventaja para las blancas, es decir, DESVENTAJA para el jugador analizado (negras)"
 	}
 
-	// Stockfish section
-	var stockfishSection string
-	if req.BestMoveSAN != "" && req.BestMoveSAN != req.Move {
-		stockfishSection = fmt.Sprintf(
-			"## Por qué Stockfish prefiere %s\n"+
-				"Stockfish recomienda %s en lugar de %s (jugada de %s). "+
-				"Explica en 2-3 oraciones qué ventaja concreta genera %s: "+
-				"¿qué amenaza activa, qué debilidad explota, qué estructura mejora?",
-			req.BestMoveSAN, req.BestMoveSAN, req.Move, movingColor, req.BestMoveSAN,
-		)
-	} else {
-		stockfishSection = fmt.Sprintf(
-			"## Por qué Stockfish prefiere esta jugada\n"+
-				"%s eligió la jugada recomendada por Stockfish. "+
-				"Explica en 2-3 oraciones qué hace %s especialmente buena en esta posición.",
-			movingColor, req.Move,
-		)
-	}
-
 	userMsg := fmt.Sprintf(`CONTEXTO DE LA JUGADA:
 - Jugador analizado: %s
 - Quién jugó: %s
 - Jugada: %s
 - Evaluación Stockfish tras la jugada: %s (%s)
-- Mejor jugada según Stockfish: %s
 - Fase: %s
 - FEN tras la jugada: %s
 - Perfil del jugador: %s
 
-Nombra las piezas en español con su casilla: "el Caballo de g1 va a f3", "la Torre captura en e8". Nunca uses solo coordenadas.
-
-Responde EXACTAMENTE con estas 5 secciones en markdown, sin agregar otras:
+Responde EXACTAMENTE con estas 4 secciones en markdown, sin agregar otras:
 
 ## Explicación
 2-3 oraciones explicando qué hace la jugada de %s y por qué es buena o mala.
-
-%s
 
 ## Plan del jugador
 ¿Qué idea o plan concreto persigue %s con este movimiento? ¿Qué amenaza o estructura busca crear?
@@ -135,17 +111,10 @@ Un concepto o patrón específico que el jugador analizado (%s) debería trabaja
 		moveAuthor,
 		req.Move,
 		evalForPlayer, evalNote,
-		func() string {
-			if req.BestMoveSAN != "" {
-				return req.BestMoveSAN
-			}
-			return "(misma jugada)"
-		}(),
 		req.GamePhase,
 		req.FEN,
 		req.PlayerProfileSummary,
 		movingColor,
-		stockfishSection,
 		movingColor,
 		playerColor,
 	)

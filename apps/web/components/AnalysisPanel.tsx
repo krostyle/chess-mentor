@@ -21,7 +21,6 @@ interface Props {
 
 const SECTIONS = [
   'Explicación',
-  'Por qué Stockfish prefiere',
   'Plan del jugador',
   'Plan del contrincante',
   '¿Qué estudiar?',
@@ -113,9 +112,7 @@ export function AnalysisPanel({
   }
 
   const sections = cachedAnalysis ? parseSections(cachedAnalysis) : {}
-  const sectionText = activeSection === 'Por qué Stockfish prefiere'
-    ? (Object.entries(sections).find(([k]) => k.startsWith('Por qué Stockfish prefiere'))?.[1] ?? '')
-    : (sections[activeSection] ?? '')
+  const sectionText = sections[activeSection] ?? ''
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4 h-full">

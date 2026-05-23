@@ -6,7 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"chess-mentor/api/models"
 	chessanalyzer "chess-mentor/api/services/chess"
+	"chess-mentor/api/services/claude"
 	"chess-mentor/api/services/lichess"
 	"chess-mentor/api/services/stockfish"
 )
@@ -39,6 +41,31 @@ func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 
 		slog.Info("GetGames: success", "username", username, "games", len(games))
 		c.JSON(http.StatusOK, games)
+	}
+}
+
+// NarrateGame generates a coach-style narrative for a full game.
+func NarrateGame(claudeClient *claude.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body struct {
+			Game           models.Game `json:"game" binding:"required"`
+			PlayerUsername string      `json:"player_username"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "game requerido"})
+			return
+		}
+
+		slog.Info("NarrateGame request", "id", body.Game.ID, "player", body.PlayerUsername)
+		narrative, err := claudeClient.AnalyzeFullGame(c.Request.Context(), body.Game, body.PlayerUsername)
+		if err != nil {
+			slog.Error("NarrateGame claude error", "err", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "no se pudo generar el análisis"})
+			return
+		}
+
+		slog.Info("NarrateGame success", "id", body.Game.ID)
+		c.JSON(http.StatusOK, gin.H{"narrative": narrative})
 	}
 }
 

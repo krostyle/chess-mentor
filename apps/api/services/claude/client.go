@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"chess-mentor/api/models"
 
@@ -101,6 +102,72 @@ Un concepto o patrón específico que el jugador debería trabajar basándose en
 	return models.ExplainResponse{
 		Explanation: extractText(msg.Content),
 	}, nil
+}
+
+// AnalyzeFullGame generates a coach-style narrative for the entire game.
+func (c *Client) AnalyzeFullGame(ctx context.Context, game models.Game, playerUsername string) (string, error) {
+	isWhite := strings.EqualFold(game.White, playerUsername)
+	playerColor := "blancas"
+	if !isWhite {
+		playerColor = "negras"
+	}
+
+	// Build a compact summary — only critical moves to save tokens
+	var summary strings.Builder
+	mistakes, blunders := 0, 0
+	turningPoint := 0
+	for _, m := range game.Moves {
+		if m.IsBlunder {
+			blunders++
+			if turningPoint == 0 {
+				turningPoint = m.MoveNumber
+			}
+			fmt.Fprintf(&summary, "Mov %d (%s) %s — BLUNDER eval=%.2f\n", m.MoveNumber, m.Color, m.SAN, m.StockfishEval)
+		} else if m.IsMistake {
+			mistakes++
+			fmt.Fprintf(&summary, "Mov %d (%s) %s — error eval=%.2f\n", m.MoveNumber, m.Color, m.SAN, m.StockfishEval)
+		} else if m.TimeSpentSeconds > 0 && m.TimeSpentSeconds < 5 && m.MoveNumber > 15 {
+			fmt.Fprintf(&summary, "Mov %d (%s) %s — jugada rápida (%.1fs)\n", m.MoveNumber, m.Color, m.SAN, m.TimeSpentSeconds)
+		}
+	}
+
+	userMsg := fmt.Sprintf(`Analiza esta partida como un entrenador de ajedrez.
+
+Partida: %s (%s) vs %s (%s) — Resultado: %s
+Apertura: %s | Control: %s | Total movimientos: %d
+Jugador analizado: %s (juega %s)
+Errores: %d errores, %d blunders
+
+Movimientos críticos:
+%s
+
+Escribe un análisis narrativo de 3-4 párrafos:
+1. Resumen general de cómo fue la partida
+2. El momento bisagra y qué debió hacerse
+3. Patrón principal de error del jugador en esta partida
+4. Una recomendación concreta de qué trabajar`,
+		game.White, fmt.Sprintf("%d", game.WhiteElo),
+		game.Black, fmt.Sprintf("%d", game.BlackElo),
+		game.Result, game.Opening, game.TimeControl, len(game.Moves),
+		playerUsername, playerColor,
+		mistakes, blunders,
+		summary.String(),
+	)
+
+	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     c.model,
+		MaxTokens: 1024,
+		System: []anthropic.TextBlockParam{
+			{Text: systemPrompt},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(userMsg)),
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("claude API error: %w", err)
+	}
+	return extractText(msg.Content), nil
 }
 
 func extractText(blocks []anthropic.ContentBlockUnion) string {

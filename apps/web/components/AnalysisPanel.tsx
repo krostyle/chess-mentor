@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import type { Move, Game } from '@/types'
-import { explainMove } from '@/lib/api'
+import { explainMove, narrateGame } from '@/lib/api'
 
 interface Props {
   profileNarrative: string
@@ -25,6 +25,17 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
   const [explanation, setExplanation] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
   const [loading, setLoading] = useState(false)
+  const [gameNarrative, setGameNarrative] = useState<string | null>(null)
+  const [narrativeLoading, setNarrativeLoading] = useState(false)
+
+  async function analyzeFullGame() {
+    if (!game || !username) return
+    setNarrativeLoading(true)
+    setGameNarrative(null)
+    const result = await narrateGame(game, username)
+    setGameNarrative(result ?? 'No se pudo generar el análisis.')
+    setNarrativeLoading(false)
+  }
 
   async function explainCurrentMove() {
     if (!currentMove) return
@@ -144,37 +155,62 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
         <div className="space-y-4">
           {game ? (
             <>
+              {/* Game metadata */}
               <div className="space-y-2 text-sm">
                 <InfoRow label="Blancas" value={game.white} elo={game.white_elo} />
                 <InfoRow label="Negras" value={game.black} elo={game.black_elo} />
                 <InfoRow label="Resultado" value={game.result} />
                 <InfoRow label="Apertura" value={game.opening || '—'} />
                 <InfoRow label="Control" value={game.time_control} />
+                <InfoRow
+                  label="Errores"
+                  value={`${game.moves.filter(m => m.is_blunder).length} blunders · ${game.moves.filter(m => m.is_mistake).length} errores`}
+                />
               </div>
 
-              {profileNarrative ? (
+              {/* Full game analysis */}
+              {!gameNarrative && !narrativeLoading && (
+                <button
+                  onClick={analyzeFullGame}
+                  disabled={!username}
+                  className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                >
+                  Analizar partida completa con GM
+                </button>
+              )}
+
+              {narrativeLoading && (
+                <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3">
+                  <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  <span className="text-xs text-gray-400">El GM está revisando la partida completa…</span>
+                </div>
+              )}
+
+              {gameNarrative && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                    Análisis del GM
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Análisis del GM</p>
+                    <button
+                      onClick={() => setGameNarrative(null)}
+                      className="text-xs text-gray-600 hover:text-gray-400"
+                    >
+                      ↺ Regenerar
+                    </button>
+                  </div>
                   <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
-                    <MarkdownText text={profileNarrative} />
+                    <MarkdownText text={gameNarrative} />
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-gray-700 p-4 text-center space-y-2">
-                  <p className="text-xs text-gray-500">
-                    El análisis completo del jugador está disponible en el perfil.
-                  </p>
-                  {username && (
-                    <a
-                      href={`/profile/${encodeURIComponent(username)}`}
-                      className="inline-block rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-600/40 transition"
-                    >
-                      Ver análisis completo del jugador →
-                    </a>
-                  )}
-                </div>
+              )}
+
+              {/* Link to full player profile */}
+              {username && (
+                <a
+                  href={`/profile/${encodeURIComponent(username)}`}
+                  className="block text-center text-xs text-indigo-400 hover:underline"
+                >
+                  Ver análisis completo del jugador →
+                </a>
               )}
             </>
           ) : (

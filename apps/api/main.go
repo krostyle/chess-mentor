@@ -47,6 +47,7 @@ func main() {
 	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, claudeClient, sfEngine))
 	r.GET("/api/games/:username", handlers.GetGames(lichessClient))
 	r.POST("/api/game/analyze", handlers.AnalyzeGame(sfEngine))
+	r.POST("/api/game/narrative", handlers.NarrateGame(claudeClient))
 	r.POST("/api/explain", handlers.ExplainMove(claudeClient))
 
 	slog.Info("chess-mentor API starting", "port", port)

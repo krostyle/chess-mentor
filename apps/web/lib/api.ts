@@ -54,6 +54,22 @@ export async function analyzeGame(pgn: string): Promise<Game | null> {
   }
 }
 
+export async function narrateGame(game: Game, playerUsername: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${apiUrl()}/api/game/narrative`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game, player_username: playerUsername }),
+      signal: AbortSignal.timeout(60_000),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { narrative: string }
+    return data.narrative
+  } catch {
+    return null
+  }
+}
+
 export async function explainMove(req: ExplainRequest): Promise<ExplainResponse | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/explain`, {

@@ -55,20 +55,23 @@ func AnnotateGame(ctx context.Context, game models.Game, engine *stockfish.Engin
 		evalBefore := whiteAdv[i]   // position before this move
 		evalAfter := whiteAdv[i+1]  // position after this move
 		bestMove := ""
+		var bestLine []string
 		if results[i] != nil {
 			bestMove = results[i].BestMove
+			bestLine = results[i].PV
 		}
 
 		// Eval drop from the moving player's perspective.
 		var drop float64
 		if annotated[i].Color == "white" {
-			drop = evalBefore - evalAfter // positive = got worse for white
+			drop = evalBefore - evalAfter
 		} else {
-			drop = evalAfter - evalBefore // positive = got worse for black (eval went up for white)
+			drop = evalAfter - evalBefore
 		}
 
 		annotated[i].StockfishEval = roundEval(evalAfter)
 		annotated[i].BestMove = bestMove
+		annotated[i].BestLine = bestLine
 		annotated[i].IsMistake = drop >= mistakeThreshold && drop < blunderThreshold
 		annotated[i].IsBlunder = drop >= blunderThreshold
 	}

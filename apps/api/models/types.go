@@ -39,7 +39,8 @@ type Move struct {
 	StockfishEval    float64 `json:"stockfish_eval,omitempty"`
 	IsMistake        bool    `json:"is_mistake,omitempty"`
 	IsBlunder        bool    `json:"is_blunder,omitempty"`
-	BestMove         string  `json:"best_move,omitempty"`
+	BestMove         string   `json:"best_move,omitempty"`
+	BestLine         []string `json:"best_line,omitempty"`
 }
 
 type Game struct {

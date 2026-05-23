@@ -86,6 +86,7 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
           profileSummary={profileSummary}
           game={selectedGame}
           username={username}
+          onJumpToMove={setMoveIndex}
         />
       </div>
     </div>

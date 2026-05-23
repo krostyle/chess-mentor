@@ -16,6 +16,7 @@ import (
 type EvalResult struct {
 	Score    float64
 	BestMove string
+	PV       []string // principal variation: first N best moves in UCI
 	IsMate   bool
 	MateIn   int
 }
@@ -177,8 +178,9 @@ func (w *sfWorker) evaluate(fen string, depth int) (*EvalResult, error) {
 					result.Score = -result.Score
 				}
 			}
-			if pv := parsePV(line); pv != "" {
-				result.BestMove = pv
+			if pv := parsePV(line, 5); len(pv) > 0 {
+				result.BestMove = pv[0]
+				result.PV = pv
 			}
 		}
 
@@ -231,16 +233,18 @@ func parseField(line, token string) float64 {
 	return v
 }
 
-// parsePV extracts the first move from the PV (principal variation) field.
-func parsePV(line string) string {
+// parsePV extracts up to maxMoves moves from the PV (principal variation) field.
+func parsePV(line string, maxMoves int) []string {
 	idx := strings.Index(line, " pv ")
 	if idx < 0 {
-		return ""
+		return nil
 	}
-	rest := strings.TrimSpace(line[idx+4:])
-	parts := strings.Fields(rest)
+	parts := strings.Fields(strings.TrimSpace(line[idx+4:]))
 	if len(parts) == 0 {
-		return ""
+		return nil
 	}
-	return parts[0]
+	if len(parts) > maxMoves {
+		parts = parts[:maxMoves]
+	}
+	return parts
 }

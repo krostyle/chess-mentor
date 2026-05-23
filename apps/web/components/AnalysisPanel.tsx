@@ -10,6 +10,7 @@ interface Props {
   currentMove: Move | null
   game?: Game
   username?: string
+  onJumpToMove?: (moveIndex: number) => void
 }
 
 const SECTIONS = [
@@ -20,7 +21,7 @@ const SECTIONS = [
   '¿Qué estudiar?',
 ]
 
-export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username }: Props) {
+export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, onJumpToMove }: Props) {
   const [activeTab, setActiveTab] = useState<'game' | 'move'>('move')
   const [explanation, setExplanation] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
@@ -93,23 +94,42 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
       {activeTab === 'move' && (
         <div className="space-y-4">
           {currentMove ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-mono text-white">{currentMove.san}</span>
-                <span className="ml-2 text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
-                {currentMove.stockfish_eval != null && (
-                  <span className={`ml-2 text-xs font-mono ${currentMove.stockfish_eval >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {currentMove.stockfish_eval > 0 ? '+' : ''}{currentMove.stockfish_eval.toFixed(2)}
-                  </span>
-                )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-white text-base">{currentMove.san}</span>
+                  <span className="text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
+                  {currentMove.stockfish_eval != null && (
+                    <span className={`text-xs font-mono font-semibold ${currentMove.stockfish_eval >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {currentMove.stockfish_eval > 0 ? '+' : ''}{currentMove.stockfish_eval.toFixed(2)}
+                    </span>
+                  )}
+                  {currentMove.is_blunder && <span className="rounded bg-red-900 px-1.5 py-0.5 text-xs text-red-300">Blunder ??</span>}
+                  {currentMove.is_mistake && !currentMove.is_blunder && <span className="rounded bg-yellow-900 px-1.5 py-0.5 text-xs text-yellow-300">Error ?</span>}
+                </div>
+                <button
+                  onClick={explainCurrentMove}
+                  disabled={loading}
+                  className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                >
+                  Explicar
+                </button>
               </div>
-              <button
-                onClick={explainCurrentMove}
-                disabled={loading}
-                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
-              >
-                Explicar
-              </button>
+
+              {/* Best move + variation */}
+              {currentMove.best_move && (
+                <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 space-y-1">
+                  <p className="text-xs text-gray-500">Mejor jugada según Stockfish</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded bg-green-900/60 px-2 py-0.5 font-mono text-xs text-green-300">
+                      {currentMove.best_move}
+                    </span>
+                    {currentMove.best_line && currentMove.best_line.slice(1).map((move, i) => (
+                      <span key={i} className="font-mono text-xs text-gray-500">{move}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-gray-500">Selecciona un movimiento para analizarlo.</p>
@@ -167,6 +187,36 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
                   value={`${game.moves.filter(m => m.is_blunder).length} blunders · ${game.moves.filter(m => m.is_mistake).length} errores`}
                 />
               </div>
+
+              {/* Critical moves — clickable */}
+              {onJumpToMove && (() => {
+                const critical = game.moves.filter(m => m.is_mistake || m.is_blunder)
+                if (critical.length === 0) return null
+                return (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                      Jugadas críticas
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {critical.map((m) => (
+                        <button
+                          key={m.move_number}
+                          onClick={() => onJumpToMove(m.move_number)}
+                          className={`rounded px-2 py-1 text-xs font-mono transition ${
+                            m.is_blunder
+                              ? 'bg-red-900/60 text-red-300 hover:bg-red-800'
+                              : 'bg-yellow-900/60 text-yellow-300 hover:bg-yellow-800'
+                          }`}
+                          title={m.is_blunder ? 'Blunder' : 'Error'}
+                        >
+                          {Math.ceil(m.move_number / 2)}.{m.color === 'black' ? '..' : ''}{m.san}
+                          {m.is_blunder ? ' ??' : ' ?'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Full game analysis */}
               {!gameNarrative && !narrativeLoading && (

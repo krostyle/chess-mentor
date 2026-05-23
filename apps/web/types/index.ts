@@ -38,6 +38,7 @@ export interface Move {
   is_mistake?: boolean
   is_blunder?: boolean
   best_move?: string
+  best_line?: string[]
 }
 
 export interface Game {

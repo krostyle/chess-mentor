@@ -13,7 +13,7 @@ export default function HomePage() {
     const trimmed = username.trim()
     if (!trimmed) return
     setLoading(true)
-    router.push(`/games/${encodeURIComponent(trimmed)}`)
+    router.push(`/profile/${encodeURIComponent(trimmed)}`)
   }
 
   return (
@@ -40,12 +40,12 @@ export default function HomePage() {
             disabled={!username.trim() || loading}
             className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading ? 'Cargando...' : 'Ver mis partidas'}
+            {loading ? 'Analizando...' : 'Analizar mis partidas'}
           </button>
         </form>
 
         <p className="text-xs text-gray-600">
-          Tus últimas 20 partidas públicas de Lichess
+          Tus últimas 50 partidas públicas de Lichess · análisis con Stockfish e IA
         </p>
       </div>
     </main>

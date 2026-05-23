@@ -23,20 +23,6 @@ export async function getProfile(username: string): Promise<PlayerProfile | null
   }
 }
 
-// Fast — no Stockfish, just PGN parsing. Used for the initial games list.
-export async function getGames(username: string): Promise<Game[]> {
-  try {
-    const res = await fetch(
-      `${apiUrl()}/api/games/${encodeURIComponent(username)}`,
-      { cache: 'no-store' },
-    )
-    if (!res.ok) return []
-    return res.json() as Promise<Game[]>
-  } catch {
-    return []
-  }
-}
-
 // Sends the PGN we already have to Railway for Stockfish annotation.
 // No second Lichess call needed — avoids 404s on re-fetch.
 export async function analyzeGame(pgn: string): Promise<Game | null> {

@@ -80,6 +80,7 @@ export interface ExplainRequest {
   stockfish_eval: string
   game_phase: 'opening' | 'middlegame' | 'endgame'
   player_profile_summary: string
+  best_move_san?: string
 }
 
 export interface ExplainResponse {

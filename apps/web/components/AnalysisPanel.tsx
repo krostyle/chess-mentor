@@ -20,7 +20,7 @@ interface Props {
 
 const SECTIONS = [
   'Explicación',
-  'Jugadas alternativas',
+  'Por qué Stockfish prefiere',
   'Plan del jugador',
   'Plan del contrincante',
   '¿Qué estudiar?',
@@ -52,12 +52,20 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
     setActiveSection(SECTIONS[0])
 
     const isPlayerMove = currentMove.color === (playerColor ?? 'white')
+
+    let bestMoveSan: string | undefined
+    if (currentMove.best_move && fenBeforeCurrentMove) {
+      const steps = uciLineToSteps(fenBeforeCurrentMove, [currentMove.best_move])
+      bestMoveSan = steps[0]?.san
+    }
+
     const resp = await explainMove({
       fen: currentMove.fen_after,
       move: currentMove.san,
       stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
       game_phase: currentMove.game_phase ?? 'middlegame',
       player_profile_summary: `Jugador con ${playerColor === 'black' ? 'negras' : 'blancas'}. Esta jugada es del ${isPlayerMove ? 'jugador analizado' : 'contrincante'}. ${profileSummary || 'Sin perfil analizado.'}`,
+      best_move_san: bestMoveSan,
     })
 
     if (resp?.explanation) {
@@ -80,7 +88,10 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
   }
 
   const sections = cachedAnalysis ? parseSections(cachedAnalysis) : {}
-  const sectionText = sections[activeSection] ?? ''
+  // "Por qué Stockfish prefiere" matches any heading that starts with that prefix
+  const sectionText = activeSection === 'Por qué Stockfish prefiere'
+    ? (Object.entries(sections).find(([k]) => k.startsWith('Por qué Stockfish prefiere'))?.[1] ?? '')
+    : (sections[activeSection] ?? '')
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4 h-full">

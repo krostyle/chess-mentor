@@ -72,6 +72,7 @@ type ExplainRequest struct {
 	StockfishEval        string `json:"stockfish_eval"`
 	GamePhase            string `json:"game_phase"`
 	PlayerProfileSummary string `json:"player_profile_summary"`
+	BestMoveSAN          string `json:"best_move_san,omitempty"`
 }
 
 type ExplainResponse struct {

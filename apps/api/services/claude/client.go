@@ -64,18 +64,31 @@ Métricas del jugador:
 
 // ExplainMove generates a pedagogical explanation for a specific move in context.
 func (c *Client) ExplainMove(ctx context.Context, req models.ExplainRequest) (models.ExplainResponse, error) {
+	var stockfishSection string
+	if req.BestMoveSAN != "" && req.BestMoveSAN != req.Move {
+		stockfishSection = fmt.Sprintf(
+			"## Por qué Stockfish prefiere %s\n"+
+				"Stockfish recomienda %s en lugar de %s. Explica en 2-3 oraciones qué ventaja concreta genera %s: "+
+				"¿qué amenaza activa, qué debilidad explota, qué estructura mejora? Nombra las piezas en español con su casilla.",
+			req.BestMoveSAN, req.BestMoveSAN, req.Move, req.BestMoveSAN,
+		)
+	} else {
+		stockfishSection = "## Por qué Stockfish prefiere esta jugada\n" +
+			"El jugador eligió la jugada recomendada por Stockfish. Explica en 2-3 oraciones qué hace este movimiento especialmente bueno: " +
+			"¿qué ventaja concreta genera o qué problema resuelve?"
+	}
+
 	userMsg := fmt.Sprintf(`Analiza el movimiento %s en la posición FEN: %s
 Evaluación Stockfish: %s | Fase: %s | Perfil: %s
 
-Al referirte a piezas, usa siempre su nombre en español (Rey, Reina, Torre, Alfil, Caballo, Peón) seguido de la casilla. Por ejemplo: "el Caballo de g1 va a f3" o "la Torre captura en e8". Nunca uses solo coordenadas como "g1f3".
+Al referirte a piezas, usa siempre su nombre en español (Rey, Reina, Torre, Alfil, Caballo, Peón) seguido de la casilla. Por ejemplo: "el Caballo de g1 va a f3" o "la Torre captura en e8". Nunca uses solo coordenadas.
 
 Responde EXACTAMENTE con estas 5 secciones en markdown, sin agregar otras:
 
 ## Explicación
 2-3 oraciones explicando qué hace este movimiento y por qué es bueno o malo.
 
-## Jugadas alternativas
-Menciona 1-2 jugadas que también se podían considerar en esta posición. Para cada una, explica brevemente qué hubiera conseguido — sin juzgar si la jugada elegida fue mejor o peor, solo muestra las opciones disponibles.
+%s
 
 ## Plan del jugador
 ¿Qué idea o plan concreto persigue quien jugó este movimiento? ¿Qué amenaza o estructura busca crear?
@@ -86,7 +99,7 @@ Si esta jugada es del jugador analizado: ¿cómo debería responder el contrinca
 
 ## ¿Qué estudiar?
 Un concepto o patrón específico que el jugador debería trabajar basándose en esta posición.`,
-		req.Move, req.FEN, req.StockfishEval, req.GamePhase, req.PlayerProfileSummary)
+		req.Move, req.FEN, req.StockfishEval, req.GamePhase, req.PlayerProfileSummary, stockfishSection)
 
 	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,

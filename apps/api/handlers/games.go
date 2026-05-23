@@ -11,7 +11,7 @@ import (
 	"chess-mentor/api/services/stockfish"
 )
 
-const stockfishDepthGame = 15
+const stockfishDepthGame = 10
 
 func GetGames(lichessClient *lichess.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {

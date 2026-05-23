@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import type { Move, Game } from '@/types'
 import { explainMove, narrateGame } from '@/lib/api'
 import { uciLineToSteps } from './GameViewer'
@@ -27,6 +28,7 @@ const SECTIONS = [
 ]
 
 export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, playerColor, fenBeforeCurrentMove, onJumpToMove, onPreviewFen }: Props) {
+  const { getToken } = useAuth()
   const [activeTab, setActiveTab] = useState<'game' | 'move'>('move')
   const [analysisCache, setAnalysisCache] = useState<Record<string, string>>({})
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
@@ -45,7 +47,8 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
     if (!game || !username) return
     setNarrativeLoading(true)
     setGameNarrative(null)
-    const result = await narrateGame(game, username)
+    const token = await getToken()
+    const result = await narrateGame(game, username, token ?? undefined)
     setGameNarrative(result ?? 'No se pudo generar el análisis.')
     setNarrativeLoading(false)
   }
@@ -55,14 +58,13 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
     setLoading(true)
     setActiveSection(SECTIONS[0])
 
-    const isPlayerMove = currentMove.color === (playerColor ?? 'white')
-
     let bestMoveSan: string | undefined
     if (currentMove.best_move && fenBeforeCurrentMove) {
       const steps = uciLineToSteps(fenBeforeCurrentMove, [currentMove.best_move])
       bestMoveSan = steps[0]?.san
     }
 
+    const token = await getToken()
     const resp = await explainMove({
       fen: currentMove.fen_after,
       move: currentMove.san,
@@ -72,7 +74,7 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
       best_move_san: bestMoveSan,
       player_color: playerColor ?? 'white',
       move_color: currentMove.color,
-    })
+    }, token ?? undefined)
 
     if (resp?.explanation) {
       setAnalysisCache(prev => ({ ...prev, [moveKey]: resp.explanation }))

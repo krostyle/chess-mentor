@@ -19,11 +19,17 @@ func main() {
 
 	port := envOr("PORT", "8080")
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	clerkKey := os.Getenv("CLERK_SECRET_KEY")
 	lichessBase := envOr("LICHESS_API_BASE", "https://lichess.org/api")
 	sfPath := envOr("STOCKFISH_PATH", "stockfish")
 
 	if apiKey == "" {
 		slog.Warn("ANTHROPIC_API_KEY not set — Claude features will be unavailable")
+	}
+	if clerkKey == "" {
+		slog.Warn("CLERK_SECRET_KEY not set — AI routes will be unprotected")
+	} else {
+		handlers.InitClerk(clerkKey)
 	}
 
 	lichessClient := lichess.NewClient(lichessBase)
@@ -45,10 +51,16 @@ func main() {
 
 	r.GET("/api/health", handlers.Health)
 	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, sfEngine))
-	r.POST("/api/profile/narrative", handlers.NarrateProfile(claudeClient))
-	r.POST("/api/game/analyze", handlers.AnalyzeGame(sfEngine))
-	r.POST("/api/game/narrative", handlers.NarrateGame(claudeClient))
-	r.POST("/api/explain", handlers.ExplainMove(claudeClient))
+
+	// Routes that consume AI credits require a valid Clerk session token.
+	ai := r.Group("/api")
+	if clerkKey != "" {
+		ai.Use(handlers.ClerkAuth())
+	}
+	ai.POST("/profile/narrative", handlers.NarrateProfile(claudeClient))
+	ai.POST("/game/analyze", handlers.AnalyzeGame(sfEngine))
+	ai.POST("/game/narrative", handlers.NarrateGame(claudeClient))
+	ai.POST("/explain", handlers.ExplainMove(claudeClient))
 
 	slog.Info("chess-mentor API starting", "port", port)
 	if err := r.Run(":" + port); err != nil {

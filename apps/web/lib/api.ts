@@ -2,7 +2,6 @@ import type { PlayerProfile, Game, ExplainRequest, ExplainResponse } from '@/typ
 
 function apiUrl(): string {
   if (typeof window === 'undefined') {
-    // Server-side: prefer API_INTERNAL_URL, fall back to NEXT_PUBLIC_API_URL
     return process.env.API_INTERNAL_URL
       ?? process.env.NEXT_PUBLIC_API_URL
       ?? 'http://localhost:8080'
@@ -10,11 +9,21 @@ function apiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
 }
 
-export async function narrateProfile(username: string, metrics: PlayerProfile['metrics']): Promise<string | null> {
+function authHeaders(token?: string): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) h['Authorization'] = `Bearer ${token}`
+  return h
+}
+
+export async function narrateProfile(
+  username: string,
+  metrics: PlayerProfile['metrics'],
+  token?: string,
+): Promise<string | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/profile/narrative`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(token),
       body: JSON.stringify({ username, metrics }),
       signal: AbortSignal.timeout(30_000),
     })
@@ -26,11 +35,13 @@ export async function narrateProfile(username: string, metrics: PlayerProfile['m
   }
 }
 
-export async function getProfile(username: string): Promise<PlayerProfile | null> {
+export async function getProfile(username: string, token?: string): Promise<PlayerProfile | null> {
   try {
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(
       `${apiUrl()}/api/profile/${encodeURIComponent(username)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers },
     )
     if (!res.ok) return null
     return res.json() as Promise<PlayerProfile>
@@ -39,13 +50,11 @@ export async function getProfile(username: string): Promise<PlayerProfile | null
   }
 }
 
-// Sends the PGN we already have to Railway for Stockfish annotation.
-// No second Lichess call needed — avoids 404s on re-fetch.
-export async function analyzeGame(pgn: string): Promise<Game | null> {
+export async function analyzeGame(pgn: string, token?: string): Promise<Game | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/game/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(token),
       body: JSON.stringify({ pgn }),
       signal: AbortSignal.timeout(60_000),
     })
@@ -56,11 +65,11 @@ export async function analyzeGame(pgn: string): Promise<Game | null> {
   }
 }
 
-export async function narrateGame(game: Game, playerUsername: string): Promise<string | null> {
+export async function narrateGame(game: Game, playerUsername: string, token?: string): Promise<string | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/game/narrative`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(token),
       body: JSON.stringify({ game, player_username: playerUsername }),
       signal: AbortSignal.timeout(60_000),
     })
@@ -72,12 +81,13 @@ export async function narrateGame(game: Game, playerUsername: string): Promise<s
   }
 }
 
-export async function explainMove(req: ExplainRequest): Promise<ExplainResponse | null> {
+export async function explainMove(req: ExplainRequest, token?: string): Promise<ExplainResponse | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/explain`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(token),
       body: JSON.stringify(req),
+      signal: AbortSignal.timeout(30_000),
     })
     if (!res.ok) return null
     return res.json() as Promise<ExplainResponse>

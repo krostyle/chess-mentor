@@ -1,3 +1,5 @@
+import { auth } from '@clerk/nextjs/server'
+import { UserButton } from '@clerk/nextjs'
 import { getProfile } from '@/lib/api'
 import { PlayerProfile } from '@/components/PlayerProfile'
 import { GameViewer } from '@/components/GameViewer'
@@ -8,7 +10,10 @@ interface Props {
 
 export default async function ProfilePage({ params }: Props) {
   const { username } = await params
-  const profile = await getProfile(username)
+  const { getToken } = await auth()
+  const token = await getToken()
+
+  const profile = await getProfile(username, token ?? undefined)
 
   if (!profile) {
     return (
@@ -34,7 +39,10 @@ export default async function ProfilePage({ params }: Props) {
               ELO {profile.elo} · {profile.metrics.total_games_analyzed} partidas analizadas
             </p>
           </div>
-          <a href="/" className="text-sm text-indigo-400 hover:underline">← Nueva búsqueda</a>
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-sm text-indigo-400 hover:underline">← Nueva búsqueda</a>
+            <UserButton />
+          </div>
         </header>
 
         <PlayerProfile profile={profile} />

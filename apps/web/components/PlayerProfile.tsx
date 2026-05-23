@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import type { PlayerProfile as Profile } from '@/types'
 import { MarkdownText } from './MarkdownText'
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function PlayerProfile({ profile }: Props) {
+  const { getToken } = useAuth()
   const { metrics } = profile
   const [expanded, setExpanded] = useState(false)
   const [narrative, setNarrative] = useState<string>(profile.narrative ?? '')
@@ -18,7 +20,8 @@ export function PlayerProfile({ profile }: Props) {
 
   async function handleGenerateNarrative() {
     setNarrativeLoading(true)
-    const result = await narrateProfile(profile.username, profile.metrics)
+    const token = await getToken()
+    const result = await narrateProfile(profile.username, profile.metrics, token ?? undefined)
     if (result) setNarrative(result)
     setNarrativeLoading(false)
   }
@@ -99,7 +102,7 @@ export function PlayerProfile({ profile }: Props) {
               <MarkdownText text={narrative} />
             </div>
             {!expanded && (
-              <div className="h-6 bg-gradient-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />
+              <div className="h-6 bg-linear-to-t from-gray-900 to-transparent -mt-6 relative pointer-events-none" />
             )}
             <button
               onClick={handleGenerateNarrative}

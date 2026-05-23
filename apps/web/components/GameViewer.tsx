@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { Chess } from 'chess.js'
 import type { Game, Move } from '@/types'
 import { Chessboard } from 'react-chessboard'
 import { GameSelector } from './GameSelector'
 import { MoveNavigator } from './MoveNavigator'
 import { AnalysisPanel } from './AnalysisPanel'
+
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 interface Props {
   games: Game[]
@@ -16,31 +19,42 @@ interface Props {
 
 export function GameViewer({ games, profileSummary, profileNarrative, username }: Props) {
   const [selectedGame, setSelectedGame] = useState<Game>(games[0])
-  const [moveIndex, setMoveIndex] = useState(0) // 0 = start position
+  const [moveIndex, setMoveIndex] = useState(0)
+  const [flipped, setFlipped] = useState(false)
 
   const moves: Move[] = selectedGame?.moves ?? []
+
+  // Determine player color for board orientation and AI context
+  const playerColor: 'white' | 'black' =
+    selectedGame && username && selectedGame.white.toLowerCase() === username.toLowerCase()
+      ? 'white'
+      : 'black'
+
+  const boardOrientation: 'white' | 'black' = flipped
+    ? playerColor === 'white' ? 'black' : 'white'
+    : playerColor
 
   const currentFen = useCallback(() => {
     if (moveIndex === 0) return 'start'
     return moves[moveIndex - 1]?.fen_after ?? 'start'
   }, [moves, moveIndex])
 
+  // FEN of the position BEFORE the current move — needed to convert best_move UCI→SAN
+  const fenBeforeCurrentMove: string =
+    moveIndex <= 1 ? START_FEN : (moves[moveIndex - 2]?.fen_after ?? START_FEN)
+
   const currentMove: Move | null = moveIndex > 0 ? (moves[moveIndex - 1] ?? null) : null
 
   function handleGameSelect(game: Game) {
     setSelectedGame(game)
     setMoveIndex(0)
+    // Auto-orient board to player's color in the new game
+    setFlipped(false)
   }
 
-  function handlePrev() {
-    setMoveIndex((i) => Math.max(0, i - 1))
-  }
+  function handlePrev() { setMoveIndex((i) => Math.max(0, i - 1)) }
+  function handleNext() { setMoveIndex((i) => Math.min(moves.length, i + 1)) }
 
-  function handleNext() {
-    setMoveIndex((i) => Math.min(moves.length, i + 1))
-  }
-
-  // Keyboard navigation
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'ArrowLeft') handlePrev()
     if (e.key === 'ArrowRight') handleNext()
@@ -54,16 +68,25 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Left column: board + game selector */}
+      {/* Left column: board + controls */}
       <div className="space-y-3">
         <GameSelector games={games} onSelect={handleGameSelect} />
 
-        <div className="overflow-hidden rounded-xl">
+        <div className="relative overflow-hidden rounded-xl">
           <Chessboard
             position={currentFen()}
+            boardOrientation={boardOrientation}
             arePiecesDraggable={false}
             customBoardStyle={{ borderRadius: '0.75rem' }}
           />
+          {/* Flip button */}
+          <button
+            onClick={() => setFlipped((f) => !f)}
+            title="Girar tablero"
+            className="absolute bottom-2 right-2 rounded-md bg-gray-900/80 px-2 py-1 text-xs text-gray-400 backdrop-blur hover:text-white transition"
+          >
+            ⇅ Girar
+          </button>
         </div>
 
         <MoveNavigator
@@ -74,7 +97,6 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
           onNext={handleNext}
         />
 
-        {/* Move list */}
         <MoveList moves={moves} currentIndex={moveIndex} onSelect={setMoveIndex} />
       </div>
 
@@ -86,6 +108,8 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
           profileSummary={profileSummary}
           game={selectedGame}
           username={username}
+          playerColor={playerColor}
+          fenBeforeCurrentMove={fenBeforeCurrentMove}
           onJumpToMove={setMoveIndex}
         />
       </div>
@@ -104,11 +128,7 @@ interface MoveListProps {
 function MoveList({ moves, currentIndex, onSelect }: MoveListProps) {
   const pairs: Array<{ num: number; white: Move; black?: Move }> = []
   for (let i = 0; i < moves.length; i += 2) {
-    pairs.push({
-      num: Math.ceil((i + 1) / 2),
-      white: moves[i],
-      black: moves[i + 1],
-    })
+    pairs.push({ num: Math.ceil((i + 1) / 2), white: moves[i], black: moves[i + 1] })
   }
 
   return (
@@ -128,28 +148,59 @@ function MoveList({ moves, currentIndex, onSelect }: MoveListProps) {
   )
 }
 
-function MoveToken({
-  move,
-  index,
-  currentIndex,
-  onSelect,
-}: {
-  move: Move
-  index: number
-  currentIndex: number
-  onSelect: (idx: number) => void
+function MoveToken({ move, index, currentIndex, onSelect }: {
+  move: Move; index: number; currentIndex: number; onSelect: (idx: number) => void
 }) {
   const isActive = currentIndex === index
+  const isBlunder = move.is_blunder
+  const isMistake = move.is_mistake && !move.is_blunder
   return (
     <button
       onClick={() => onSelect(index)}
       className={`rounded px-1 py-0.5 transition ${
         isActive
           ? 'bg-indigo-600 text-white'
+          : isBlunder
+          ? 'text-red-400 hover:bg-gray-800'
+          : isMistake
+          ? 'text-yellow-400 hover:bg-gray-800'
           : 'text-gray-400 hover:bg-gray-800 hover:text-white'
       }`}
     >
-      {move.san}
+      {move.san}{isBlunder ? '??' : isMistake ? '?' : ''}
     </button>
   )
+}
+
+// ─── UCI → SAN conversion ─────────────────────────────────────────────────────
+
+export function uciToSan(fen: string, uci: string): string {
+  try {
+    const chess = new Chess(fen)
+    const from = uci.slice(0, 2)
+    const to = uci.slice(2, 4)
+    const promotion = uci.length === 5 ? uci[4] : undefined
+    const move = chess.move({ from, to, promotion })
+    return move?.san ?? uci
+  } catch {
+    return uci
+  }
+}
+
+export function uciLineToPairs(startFen: string, ucis: string[]): string[] {
+  const chess = new Chess(startFen)
+  const sans: string[] = []
+  for (const uci of ucis) {
+    try {
+      const from = uci.slice(0, 2)
+      const to = uci.slice(2, 4)
+      const promotion = uci.length === 5 ? uci[4] : undefined
+      const move = chess.move({ from, to, promotion })
+      if (!move) break
+      sans.push(move.san)
+    } catch {
+      break
+    }
+  }
+  return sans
 }

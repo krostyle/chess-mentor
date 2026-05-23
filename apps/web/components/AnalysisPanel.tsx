@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Move, Game } from '@/types'
 import { explainMove, narrateGame } from '@/lib/api'
+import { uciLineToPairs } from './GameViewer'
 
 interface Props {
   profileNarrative: string
@@ -10,6 +11,8 @@ interface Props {
   currentMove: Move | null
   game?: Game
   username?: string
+  playerColor?: 'white' | 'black'
+  fenBeforeCurrentMove?: string
   onJumpToMove?: (moveIndex: number) => void
 }
 
@@ -21,7 +24,7 @@ const SECTIONS = [
   '¿Qué estudiar?',
 ]
 
-export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, onJumpToMove }: Props) {
+export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, game, username, playerColor, fenBeforeCurrentMove, onJumpToMove }: Props) {
   const [activeTab, setActiveTab] = useState<'game' | 'move'>('move')
   const [explanation, setExplanation] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
@@ -49,7 +52,7 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
       move: currentMove.san,
       stockfish_eval: currentMove.stockfish_eval ? String(currentMove.stockfish_eval) : '0',
       game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: profileSummary || 'Jugador sin perfil analizado.',
+      player_profile_summary: `Jugador con ${playerColor === 'black' ? 'negras' : 'blancas'}. ${profileSummary || 'Sin perfil analizado.'}`,
     })
 
     setExplanation(resp?.explanation ?? null)
@@ -116,20 +119,25 @@ export function AnalysisPanel({ profileNarrative, profileSummary, currentMove, g
                 </button>
               </div>
 
-              {/* Best move + variation */}
-              {currentMove.best_move && (
-                <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 space-y-1">
-                  <p className="text-xs text-gray-500">Mejor jugada según Stockfish</p>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="rounded bg-green-900/60 px-2 py-0.5 font-mono text-xs text-green-300">
-                      {currentMove.best_move}
-                    </span>
-                    {currentMove.best_line && currentMove.best_line.slice(1).map((move, i) => (
-                      <span key={i} className="font-mono text-xs text-gray-500">{move}</span>
-                    ))}
+              {/* Best move + variation in SAN */}
+              {currentMove.best_move && fenBeforeCurrentMove && (() => {
+                const line = currentMove.best_line ?? [currentMove.best_move]
+                const sanLine = uciLineToPairs(fenBeforeCurrentMove, line)
+                if (sanLine.length === 0) return null
+                return (
+                  <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 space-y-1">
+                    <p className="text-xs text-gray-500">Mejor continuación según Stockfish</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded bg-green-900/60 px-2 py-0.5 font-mono text-xs text-green-300 font-semibold">
+                        {sanLine[0]}
+                      </span>
+                      {sanLine.slice(1).map((san, i) => (
+                        <span key={i} className="font-mono text-xs text-gray-400">{san}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           ) : (
             <p className="text-sm text-gray-500">Selecciona un movimiento para analizarlo.</p>

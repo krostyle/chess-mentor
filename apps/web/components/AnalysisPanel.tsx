@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import type { Move, Game } from '@/types'
-import { explainMove, narrateGame } from '@/lib/api'
+import { explainMove, narrateGame, chatGame } from '@/lib/api'
 import { uciLineToSteps } from './GameViewer'
 import { MarkdownText } from './MarkdownText'
 
@@ -42,8 +42,17 @@ export function AnalysisPanel({
   const [loading, setLoading] = useState(false)
   const [gameNarrative, setGameNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { setGameNarrative(null) }, [game?.id])
+  useEffect(() => {
+    setGameNarrative(null)
+    setChatMessages([])
+    setChatOpen(false)
+  }, [game?.id])
 
   const moves = game?.moves ?? []
   const criticalMoves = moves.filter(m => m.is_mistake || m.is_blunder)
@@ -61,6 +70,27 @@ export function AnalysisPanel({
 
   const moveKey = selectedError?.uci ?? null
   const cachedAnalysis = moveKey ? (analysisCache[moveKey] ?? null) : null
+
+  async function sendChat(e: React.FormEvent) {
+    e.preventDefault()
+    const text = chatInput.trim()
+    if (!text || !game || chatLoading) return
+
+    const newMessages: { role: 'user' | 'assistant'; content: string }[] = [
+      ...chatMessages,
+      { role: 'user', content: text },
+    ]
+    setChatMessages(newMessages)
+    setChatInput('')
+    setChatLoading(true)
+    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    const token = await getToken()
+    const reply = await chatGame(game, username ?? '', newMessages, token ?? undefined)
+    setChatMessages(prev => [...prev, { role: 'assistant', content: reply ?? 'No se pudo obtener respuesta.' }])
+    setChatLoading(false)
+    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
 
   async function analyzeFullGame() {
     if (!game || !username) return
@@ -360,6 +390,76 @@ export function AnalysisPanel({
                   </div>
                 </div>
               )}
+
+              {/* Chat grounded in Stockfish data */}
+              <div className="border-t border-gray-800 pt-3 space-y-2">
+                <button
+                  onClick={() => setChatOpen(o => !o)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition text-sm text-gray-300"
+                >
+                  <span className="flex items-center gap-2">
+                    <span>💬</span>
+                    <span>Preguntar sobre esta partida</span>
+                  </span>
+                  <span className="text-gray-500 text-xs">{chatOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {chatOpen && (
+                  <div className="rounded-lg border border-gray-700 bg-gray-950 flex flex-col" style={{ maxHeight: '380px' }}>
+                    <div className="px-3 py-2 border-b border-gray-800">
+                      <p className="text-xs text-gray-500">Respuestas basadas en datos reales de Stockfish</p>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" style={{ maxHeight: '260px' }}>
+                      {chatMessages.length === 0 && (
+                        <p className="text-xs text-gray-600 text-center py-4">
+                          Pregunta sobre la apertura, los errores, la estrategia de Stockfish...
+                        </p>
+                      )}
+                      {chatMessages.map((m, i) => (
+                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`rounded-lg px-3 py-2 text-xs max-w-[85%] leading-relaxed ${
+                            m.role === 'user'
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-gray-800 text-gray-300'
+                          }`}>
+                            {m.content}
+                          </div>
+                        </div>
+                      ))}
+                      {chatLoading && (
+                        <div className="flex justify-start">
+                          <div className="rounded-lg px-3 py-2 bg-gray-800 flex items-center gap-2">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                            <span className="text-xs text-gray-500">Analizando…</span>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatBottomRef} />
+                    </div>
+
+                    {/* Input */}
+                    <form onSubmit={sendChat} className="border-t border-gray-800 p-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        placeholder="¿Por qué fue malo el movimiento 12?"
+                        disabled={chatLoading}
+                        className="flex-1 rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={chatLoading || !chatInput.trim()}
+                        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                      >
+                        Enviar
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
 
               {username && (
                 <a

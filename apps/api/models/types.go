@@ -66,6 +66,17 @@ type PlayerProfile struct {
 	AnalyzedAt string        `json:"analyzed_at"`
 }
 
+type ChatMessage struct {
+	Role    string `json:"role"`    // "user" | "assistant"
+	Content string `json:"content"`
+}
+
+type GameChatRequest struct {
+	Game           Game          `json:"game" binding:"required"`
+	PlayerUsername string        `json:"player_username"`
+	Messages       []ChatMessage `json:"messages" binding:"required"`
+}
+
 type ExplainRequest struct {
 	FEN                  string `json:"fen"`
 	Move                 string `json:"move"`

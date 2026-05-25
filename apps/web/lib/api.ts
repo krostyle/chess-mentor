@@ -81,6 +81,27 @@ export async function narrateGame(game: Game, playerUsername: string, token?: st
   }
 }
 
+export async function chatGame(
+  game: Game,
+  playerUsername: string,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+  token?: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${apiUrl()}/api/game/chat`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ game, player_username: playerUsername, messages }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { reply: string }
+    return data.reply
+  } catch {
+    return null
+  }
+}
+
 export async function explainMove(req: ExplainRequest, token?: string): Promise<ExplainResponse | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/explain`, {

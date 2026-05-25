@@ -39,6 +39,30 @@ func NarrateGame(claudeClient *claude.Client) gin.HandlerFunc {
 	}
 }
 
+// ChatGame handles a multi-turn conversation about a game grounded in Stockfish data.
+func ChatGame(claudeClient *claude.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body models.GameChatRequest
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "datos inválidos"})
+			return
+		}
+		if len(body.Messages) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "messages requerido"})
+			return
+		}
+
+		reply, err := claudeClient.GameChat(c.Request.Context(), body.Game, body.PlayerUsername, body.Messages)
+		if err != nil {
+			slog.Error("ChatGame claude error", "err", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "no se pudo generar la respuesta"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"reply": reply})
+	}
+}
+
 // AnalyzeGame receives a PGN in the request body and returns the game
 // annotated with Stockfish evaluations. No second Lichess call needed.
 func AnalyzeGame(sfEngine *stockfish.Engine) gin.HandlerFunc {

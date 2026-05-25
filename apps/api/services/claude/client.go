@@ -226,6 +226,93 @@ Escribe un análisis narrativo de 3-4 párrafos:
 	return extractText(msg.Content), nil
 }
 
+const chatSystemPrompt = `Eres un asistente de análisis de ajedrez.
+Respondes preguntas EXCLUSIVAMENTE basándote en los datos de Stockfish de la partida provistos.
+REGLAS OBLIGATORIAS:
+- Solo referenciar evaluaciones y jugadas que estén en los datos. Nunca inventar nada.
+- Si no tienes datos para responder algo, decirlo: "Los datos de Stockfish no cubren eso."
+- Identificar bandos por color: "las blancas", "las negras". Nunca "tú" ni "tu jugada".
+- Ser conciso: 2-4 oraciones salvo que se pida más detalle.
+- Responder siempre en español.`
+
+// GameChat handles a multi-turn conversation about a game grounded in Stockfish data.
+func (c *Client) GameChat(ctx context.Context, game models.Game, playerUsername string, messages []models.ChatMessage) (string, error) {
+	isWhite := strings.EqualFold(game.White, playerUsername)
+	playerColor := "blancas"
+	if !isWhite {
+		playerColor = "negras"
+	}
+
+	// Build compact Stockfish context
+	var ctx_sb strings.Builder
+	fmt.Fprintf(&ctx_sb, "PARTIDA: %s (%d) vs %s (%d) — %s\n", game.White, game.WhiteElo, game.Black, game.BlackElo, game.Result)
+	fmt.Fprintf(&ctx_sb, "Apertura: %s | Control: %s | Total jugadas: %d\n", game.Opening, game.TimeControl, (len(game.Moves)+1)/2)
+	fmt.Fprintf(&ctx_sb, "Jugador analizado: %s (%s)\n\n", playerUsername, playerColor)
+	ctx_sb.WriteString("EVALUACIONES STOCKFISH (+ = ventaja blancas, - = ventaja negras):\n")
+
+	// Compact line for all moves; blunders/mistakes get their own annotated line
+	var compactMoves strings.Builder
+	blunders, mistakes := 0, 0
+	for _, m := range game.Moves {
+		n := (m.MoveNumber + 1) / 2
+		var label string
+		if m.Color == "white" {
+			label = fmt.Sprintf("%d.%s", n, m.SAN)
+		} else {
+			label = fmt.Sprintf("%d...%s", n, m.SAN)
+		}
+
+		if m.IsBlunder || m.IsMistake {
+			if compactMoves.Len() > 0 {
+				ctx_sb.WriteString(compactMoves.String() + "\n")
+				compactMoves.Reset()
+			}
+			tag := "Error"
+			if m.IsBlunder {
+				tag = "BLUNDER"
+				blunders++
+			} else {
+				mistakes++
+			}
+			line := fmt.Sprintf("⚠ %s %s [eval=%+.2f]", label, tag, m.StockfishEval)
+			if m.BestMove != "" {
+				line += fmt.Sprintf(" — mejor jugada Stockfish: %s", m.BestMove)
+			}
+			ctx_sb.WriteString(line + "\n")
+		} else {
+			fmt.Fprintf(&compactMoves, "%s[%+.2f] ", label, m.StockfishEval)
+		}
+	}
+	if compactMoves.Len() > 0 {
+		ctx_sb.WriteString(compactMoves.String() + "\n")
+	}
+	fmt.Fprintf(&ctx_sb, "\nResumen: %d blunders, %d errores del jugador analizado (%s)", blunders, mistakes, playerColor)
+
+	systemMsg := chatSystemPrompt + "\n\n" + ctx_sb.String()
+
+	var apiMessages []anthropic.MessageParam
+	for _, m := range messages {
+		if m.Role == "user" {
+			apiMessages = append(apiMessages, anthropic.NewUserMessage(anthropic.NewTextBlock(m.Content)))
+		} else {
+			apiMessages = append(apiMessages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(m.Content)))
+		}
+	}
+
+	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     c.model,
+		MaxTokens: 1024,
+		System:    []anthropic.TextBlockParam{{Text: systemMsg}},
+		Messages:  apiMessages,
+	})
+	if err != nil {
+		return "", fmt.Errorf("claude API error: %w", err)
+	}
+
+	stats.Global.Record("game_chat", int64(msg.Usage.InputTokens), int64(msg.Usage.OutputTokens))
+	return extractText(msg.Content), nil
+}
+
 func extractText(blocks []anthropic.ContentBlockUnion) string {
 	for _, block := range blocks {
 		if block.Type == "text" {

@@ -31,7 +31,7 @@ const userAgent = "chess-mentor/1.0 (https://github.com/krostyle/chess-mentor)"
 // FetchGames downloads up to max games for the given username in PGN format.
 // Returns one PGN string per game.
 func (c *Client) FetchGames(ctx context.Context, username string, max int) ([]string, error) {
-	url := fmt.Sprintf("%s/games/user/%s?max=%d&clocks=true&opening=true", c.baseURL, username, max)
+	url := fmt.Sprintf("%s/games/user/%s?max=%d&clocks=true&opening=true&rated=true&perfType=ultraBullet,bullet,blitz,rapid,classical", c.baseURL, username, max)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

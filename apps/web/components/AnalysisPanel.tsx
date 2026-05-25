@@ -424,7 +424,7 @@ export function AnalysisPanel({
                               ? 'bg-indigo-600 text-white'
                               : 'bg-gray-800 text-gray-300'
                           }`}>
-                            {m.content}
+                            {m.role === 'user' ? m.content : <MarkdownText text={m.content} />}
                           </div>
                         </div>
                       ))}

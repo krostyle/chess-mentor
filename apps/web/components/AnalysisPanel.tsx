@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import type { Move, Game } from '@/types'
-import { explainMove, narrateGame, chatGame } from '@/lib/api'
+import { narrateGame, chatGame } from '@/lib/api'
 import { uciLineToSteps } from './GameViewer'
 import { MarkdownText } from './MarkdownText'
 
@@ -19,13 +19,6 @@ interface Props {
   onPreviewFen?: (fen: string | null) => void
 }
 
-const SECTIONS = [
-  'Explicación',
-  'Plan del jugador',
-  'Plan del contrincante',
-  '¿Qué estudiar?',
-]
-
 function moveLabel(m: Move): string {
   const n = Math.ceil(m.move_number / 2)
   return m.color === 'white' ? `${n}.${m.san}` : `${n}...${m.san}`
@@ -37,9 +30,6 @@ export function AnalysisPanel({
 }: Props) {
   const { getToken } = useAuth()
   const [activeTab, setActiveTab] = useState<'analysis' | 'game'>('analysis')
-  const [analysisCache, setAnalysisCache] = useState<Record<string, string>>({})
-  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0])
-  const [loading, setLoading] = useState(false)
   const [gameNarrative, setGameNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -47,12 +37,22 @@ export function AnalysisPanel({
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  // Move-specific chat
+  const [moveChatMessages, setMoveChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [moveChatInput, setMoveChatInput] = useState('')
+  const [moveChatLoading, setMoveChatLoading] = useState(false)
+  const moveChatBottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setGameNarrative(null)
     setChatMessages([])
     setChatOpen(false)
   }, [game?.id])
+
+  useEffect(() => {
+    setMoveChatMessages([])
+    setMoveChatInput('')
+  }, [currentMove?.uci])
 
   const moves = game?.moves ?? []
   const criticalMoves = moves.filter(m => m.is_mistake || m.is_blunder)
@@ -63,8 +63,10 @@ export function AnalysisPanel({
   const prevMove = currentIdx > 0 ? moves[currentIdx - 1] : null
   const nextMove = currentIdx >= 0 && currentIdx < moves.length - 1 ? moves[currentIdx + 1] : null
 
-  const moveKey = currentMove?.uci ?? null
-  const cachedAnalysis = moveKey ? (analysisCache[moveKey] ?? null) : null
+  // Compute best move SAN at render time for chat context injection
+  const bestMoveSan = currentMove?.best_move && fenBeforeCurrentMove
+    ? uciLineToSteps(fenBeforeCurrentMove, [currentMove.best_move])[0]?.san
+    : undefined
 
   // Navigate to a move referenced by notation in chat (e.g. "12...Nd4")
   function handleChatMoveClick(notation: string) {
@@ -78,6 +80,39 @@ export function AnalysisPanel({
       return n === chessNum && (mv.move_number % 2 === 0) === isBlack
     })
     if (found) onJumpToMove(found.move_number)
+  }
+
+  async function sendMoveChat(e: React.FormEvent) {
+    e.preventDefault()
+    const text = moveChatInput.trim()
+    if (!text || !game || moveChatLoading) return
+
+    const userMsg = { role: 'user' as const, content: text }
+    const displayMessages = [...moveChatMessages, userMsg]
+    setMoveChatMessages(displayMessages)
+    setMoveChatInput('')
+    setMoveChatLoading(true)
+    setTimeout(() => moveChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    // First message: inject move context so the AI knows which move is being discussed
+    let apiMessages: { role: 'user' | 'assistant'; content: string }[]
+    if (moveChatMessages.length === 0 && currentMove) {
+      const label = moveLabel(currentMove)
+      const errorTag = currentMove.is_blunder ? ' (blunder ??)' : currentMove.is_mistake ? ' (error ?)' : ''
+      const evalStr = currentMove.stockfish_eval != null
+        ? `Stockfish eval: ${currentMove.stockfish_eval > 0 ? '+' : ''}${currentMove.stockfish_eval.toFixed(2)}.`
+        : ''
+      const bestStr = bestMoveSan ? ` La mejor jugada era: ${bestMoveSan}.` : ''
+      apiMessages = [{ role: 'user', content: `[Jugada analizada: ${label}${errorTag}. ${evalStr}${bestStr}]\n\n${text}` }]
+    } else {
+      apiMessages = displayMessages
+    }
+
+    const token = await getToken()
+    const reply = await chatGame(game, username ?? '', apiMessages, token ?? undefined)
+    setMoveChatMessages(prev => [...prev, { role: 'assistant', content: reply ?? 'No se pudo obtener respuesta.' }])
+    setMoveChatLoading(false)
+    setTimeout(() => moveChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
   async function sendChat(e: React.FormEvent) {
@@ -109,45 +144,6 @@ export function AnalysisPanel({
     setNarrativeLoading(false)
   }
 
-  async function analyzeCurrentMove() {
-    if (!currentMove || !moveKey) return
-    setLoading(true)
-    setActiveSection(SECTIONS[0])
-    let bestMoveSan: string | undefined
-    if (currentMove.best_move && fenBeforeCurrentMove) {
-      const steps = uciLineToSteps(fenBeforeCurrentMove, [currentMove.best_move])
-      bestMoveSan = steps[0]?.san
-    }
-    const token = await getToken()
-    const resp = await explainMove({
-      fen: currentMove.fen_after,
-      move: currentMove.san,
-      stockfish_eval: currentMove.stockfish_eval != null ? String(currentMove.stockfish_eval) : '0',
-      game_phase: currentMove.game_phase ?? 'middlegame',
-      player_profile_summary: profileSummary || 'Sin perfil analizado.',
-      best_move_san: bestMoveSan,
-      player_color: playerColor ?? 'white',
-      move_color: currentMove.color,
-    }, token ?? undefined)
-    if (resp?.explanation) {
-      setAnalysisCache(prev => ({ ...prev, [moveKey]: resp.explanation }))
-    }
-    setLoading(false)
-  }
-
-  function parseSections(md: string): Record<string, string> {
-    const result: Record<string, string> = {}
-    for (const part of md.split(/^## /m)) {
-      const nl = part.indexOf('\n')
-      if (nl === -1) continue
-      result[part.slice(0, nl).trim()] = part.slice(nl + 1).trim()
-    }
-    return result
-  }
-
-  const sections = cachedAnalysis ? parseSections(cachedAnalysis) : {}
-  const sectionText = sections[activeSection] ?? ''
-
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-4 h-full">
       {/* Tabs */}
@@ -172,30 +168,20 @@ export function AnalysisPanel({
 
       {/* ── Analysis tab ── */}
       {activeTab === 'analysis' && (
-        <div className="space-y-4">
-          {/* Current move — any move */}
+        <div className="space-y-4 flex flex-col" style={{ minHeight: 0 }}>
           {currentMove ? (
             <div className="space-y-3">
               {/* Move header */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-white text-base">{moveLabel(currentMove)}</span>
-                  <span className="text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
-                  {currentMove.stockfish_eval != null && (
-                    <span className={`text-xs font-mono font-semibold ${currentMove.stockfish_eval >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {currentMove.stockfish_eval > 0 ? '+' : ''}{currentMove.stockfish_eval.toFixed(2)}
-                    </span>
-                  )}
-                  {currentMove.is_blunder && <span className="rounded bg-red-900 px-1.5 py-0.5 text-xs text-red-300">Blunder ??</span>}
-                  {currentMove.is_mistake && !currentMove.is_blunder && <span className="rounded bg-yellow-900 px-1.5 py-0.5 text-xs text-yellow-300">Error ?</span>}
-                </div>
-                <button
-                  onClick={analyzeCurrentMove}
-                  disabled={loading}
-                  className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
-                >
-                  {cachedAnalysis ? '↺ Re-analizar' : 'Analizar con IA'}
-                </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-white text-base">{moveLabel(currentMove)}</span>
+                <span className="text-xs text-gray-500 capitalize">{currentMove.game_phase}</span>
+                {currentMove.stockfish_eval != null && (
+                  <span className={`text-xs font-mono font-semibold ${currentMove.stockfish_eval >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {currentMove.stockfish_eval > 0 ? '+' : ''}{currentMove.stockfish_eval.toFixed(2)}
+                  </span>
+                )}
+                {currentMove.is_blunder && <span className="rounded bg-red-900 px-1.5 py-0.5 text-xs text-red-300">Blunder ??</span>}
+                {currentMove.is_mistake && !currentMove.is_blunder && <span className="rounded bg-yellow-900 px-1.5 py-0.5 text-xs text-yellow-300">Error ?</span>}
               </div>
 
               {/* Context sequence: prev → current → next */}
@@ -266,40 +252,61 @@ export function AnalysisPanel({
                 )
               })()}
 
-              {/* Loading */}
-              {loading && (
-                <div className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3">
-                  <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-                  <span className="text-xs text-gray-400">El GM está analizando…</span>
+              {/* Move chat */}
+              <div className="rounded-lg border border-gray-700 bg-gray-950 flex flex-col">
+                <div className="px-3 py-2 border-b border-gray-800 flex items-center justify-between">
+                  <p className="text-xs text-gray-400 font-medium">Pregunta sobre esta jugada</p>
+                  <p className="text-xs text-gray-600">Basado en Stockfish</p>
                 </div>
-              )}
-
-              {/* Analysis sections */}
-              {cachedAnalysis && !loading && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {SECTIONS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setActiveSection(s)}
-                        className={`rounded-full px-3 py-1 text-xs transition ${
-                          activeSection === s
-                            ? 'bg-indigo-600 text-white'
-                            : 'border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-400'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="rounded-lg bg-gray-800 p-3 text-sm text-gray-300 leading-relaxed">
-                    <MarkdownText text={sectionText || 'Sin información para esta sección.'} />
-                  </div>
+                <div className="overflow-y-auto p-3 space-y-3" style={{ maxHeight: '240px', minHeight: '80px' }}>
+                  {moveChatMessages.length === 0 && (
+                    <p className="text-xs text-gray-600 text-center py-3">
+                      ¿Por qué fue mala esta jugada? ¿Qué debería haber jugado?
+                    </p>
+                  )}
+                  {moveChatMessages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`rounded-lg px-3 py-2 text-xs max-w-[88%] leading-relaxed ${
+                        m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300'
+                      }`}>
+                        {m.role === 'user'
+                          ? m.content
+                          : <MarkdownText text={m.content} onMoveClick={handleChatMoveClick} />
+                        }
+                      </div>
+                    </div>
+                  ))}
+                  {moveChatLoading && (
+                    <div className="flex justify-start">
+                      <div className="rounded-lg px-3 py-2 bg-gray-800 flex items-center gap-2">
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                        <span className="text-xs text-gray-500">Analizando…</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={moveChatBottomRef} />
                 </div>
-              )}
+                <form onSubmit={sendMoveChat} className="border-t border-gray-800 p-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={moveChatInput}
+                    onChange={e => setMoveChatInput(e.target.value)}
+                    placeholder="¿Por qué Stockfish prefiere otra jugada?"
+                    disabled={moveChatLoading}
+                    className="flex-1 rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={moveChatLoading || !moveChatInput.trim()}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                  >
+                    Enviar
+                  </button>
+                </form>
+              </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Selecciona un movimiento en el tablero para analizarlo.</p>
+            <p className="text-sm text-gray-500">Selecciona un movimiento en el tablero para preguntar sobre él.</p>
           )}
 
           {/* Critical moves quick nav */}

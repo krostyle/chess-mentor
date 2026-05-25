@@ -43,6 +43,10 @@ func (a *Analyzer) AnalyzeGames(pgns []string, username string) ([]models.Game, 
 	latestElo := 0
 
 	for _, pgn := range pgns {
+		// Skip chess variants (Chess960, Crazyhouse, etc.) — only analyze standard chess
+		if strings.Contains(pgn, "[Variant \"") && !strings.Contains(pgn, "[Variant \"Standard\"") {
+			continue
+		}
 		g, err := a.AnalyzeGame(pgn)
 		if err != nil {
 			continue

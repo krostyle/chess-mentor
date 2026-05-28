@@ -101,6 +101,40 @@ func (c *Client) FetchGame(ctx context.Context, gameID string) (string, error) {
 	return sb.String(), scanner.Err()
 }
 
+// FetchStudies downloads all study chapters for the given username in PGN format.
+func (c *Client) FetchStudies(ctx context.Context, username string) ([]string, error) {
+	url := fmt.Sprintf("%s/study/by/%s/export.pgn?clocks=true", c.baseURL, username)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/x-chess-pgn")
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		slog.Error("lichess FetchStudies request failed", "username", username, "err", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	slog.Info("lichess FetchStudies response", "username", username, "status", resp.StatusCode)
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("lichess API returned status %d", resp.StatusCode)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
+	pgns := splitPGNs(scanner)
+	slog.Info("lichess FetchStudies parsed", "username", username, "count", len(pgns))
+	return pgns, nil
+}
+
 // splitPGNs splits a multi-game PGN stream into individual PGN strings.
 // Lichess separates games with a blank line between them; each game starts
 // with an [Event "..."] tag.

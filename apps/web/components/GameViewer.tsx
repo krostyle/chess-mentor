@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import { Chess } from 'chess.js'
 import type { Game, Move } from '@/types'
 import { Chessboard } from 'react-chessboard'
 import { GameSelector } from './GameSelector'
 import { MoveNavigator } from './MoveNavigator'
 import { AnalysisPanel } from './AnalysisPanel'
+import { getStudies } from '@/lib/api'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
@@ -17,11 +19,41 @@ interface Props {
   username?: string
 }
 
+type ViewTab = 'games' | 'studies'
+
 export function GameViewer({ games, profileSummary, profileNarrative, username }: Props) {
+  const { getToken } = useAuth()
+  const [viewTab, setViewTab] = useState<ViewTab>('games')
+  const [studies, setStudies] = useState<Game[] | null>(null)
+  const [studiesLoading, setStudiesLoading] = useState(false)
   const [selectedGame, setSelectedGame] = useState<Game>(games[0])
   const [moveIndex, setMoveIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [previewFen, setPreviewFen] = useState<string | null>(null)
+
+  async function handleTabStudies() {
+    setViewTab('studies')
+    if (studies !== null) return
+    setStudiesLoading(true)
+    const token = await getToken()
+    const result = await getStudies(username ?? '', token ?? undefined)
+    setStudies(result ?? [])
+    if (result && result.length > 0) {
+      setSelectedGame(result[0])
+      setMoveIndex(0)
+      setPreviewFen(null)
+    }
+    setStudiesLoading(false)
+  }
+
+  function handleTabGames() {
+    setViewTab('games')
+    setSelectedGame(games[0])
+    setMoveIndex(0)
+    setPreviewFen(null)
+  }
+
+  const activeList = viewTab === 'games' ? games : (studies ?? [])
 
   const moves: Move[] = selectedGame?.moves ?? []
 
@@ -29,6 +61,7 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
     selectedGame && username && selectedGame.white.toLowerCase() === username.toLowerCase()
       ? 'white'
       : 'black'
+
 
   const boardOrientation: 'white' | 'black' = flipped
     ? playerColor === 'white' ? 'black' : 'white'
@@ -69,7 +102,42 @@ export function GameViewer({ games, profileSummary, profileNarrative, username }
     >
       {/* Left column: board + controls */}
       <div className="space-y-3">
-        <GameSelector games={games} username={username} onSelect={handleGameSelect} />
+        {/* Source tabs: Partidas / Estudios */}
+        <div className="flex gap-1 rounded-lg border border-gray-800 bg-gray-900 p-1">
+          <button
+            onClick={handleTabGames}
+            className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+              viewTab === 'games' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Partidas ({games.length})
+          </button>
+          <button
+            onClick={handleTabStudies}
+            className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+              viewTab === 'studies' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {studiesLoading ? 'Cargando…' : `Estudios${studies !== null ? ` (${studies.length})` : ''}`}
+          </button>
+        </div>
+
+        {viewTab === 'studies' && studiesLoading && (
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-gray-800 bg-gray-900 py-6">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            <span className="text-sm text-gray-400">Descargando estudios de Lichess…</span>
+          </div>
+        )}
+
+        {viewTab === 'studies' && !studiesLoading && studies?.length === 0 && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-6 text-center text-sm text-gray-500">
+            No se encontraron estudios públicos para este usuario.
+          </div>
+        )}
+
+        {(!studiesLoading && activeList.length > 0) && (
+          <GameSelector games={activeList} username={username} onSelect={handleGameSelect} />
+        )}
 
         <div className="relative overflow-hidden rounded-xl">
           <Chessboard

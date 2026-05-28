@@ -47,7 +47,7 @@ export interface Game {
   black: string
   white_elo?: number
   black_elo?: number
-  result: '1-0' | '0-1' | '1/2-1/2'
+  result: '1-0' | '0-1' | '1/2-1/2' | '*'
   date: string
   opening: string
   time_control: string

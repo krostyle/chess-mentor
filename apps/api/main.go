@@ -52,6 +52,7 @@ func main() {
 
 	r.GET("/api/health", handlers.Health)
 	r.GET("/api/profile/:username", handlers.GetProfile(lichessClient, sfEngine))
+	r.GET("/api/studies/:username", handlers.GetStudies(lichessClient, sfEngine))
 
 	// Routes that consume AI credits require a valid Clerk session token.
 	ai := r.Group("/api")

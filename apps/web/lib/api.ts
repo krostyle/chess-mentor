@@ -102,6 +102,22 @@ export async function chatGame(
   }
 }
 
+export async function getStudies(username: string, token?: string): Promise<Game[] | null> {
+  try {
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(
+      `${apiUrl()}/api/studies/${encodeURIComponent(username)}`,
+      { cache: 'no-store', headers },
+    )
+    if (!res.ok) return null
+    const data = await res.json() as { chapters: Game[] }
+    return data.chapters
+  } catch {
+    return null
+  }
+}
+
 export async function explainMove(req: ExplainRequest, token?: string): Promise<ExplainResponse | null> {
   try {
     const res = await fetch(`${apiUrl()}/api/explain`, {

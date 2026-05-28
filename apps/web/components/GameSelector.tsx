@@ -12,7 +12,7 @@ interface Props {
 type Outcome = 'win' | 'loss' | 'draw'
 
 function getOutcome(game: Game, username?: string): Outcome {
-  if (game.result === '1/2-1/2') return 'draw'
+  if (game.result === '1/2-1/2' || game.result === '*') return 'draw'
   const isWhite = username && game.white.toLowerCase() === username.toLowerCase()
   if (game.result === '1-0') return isWhite ? 'win' : 'loss'
   if (game.result === '0-1') return isWhite ? 'loss' : 'win'

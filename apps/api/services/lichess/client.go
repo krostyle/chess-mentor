@@ -31,7 +31,7 @@ const userAgent = "chess-mentor/1.0 (https://github.com/krostyle/chess-mentor)"
 // FetchGames downloads up to max games for the given username in PGN format.
 // Returns one PGN string per game.
 func (c *Client) FetchGames(ctx context.Context, username string, max int) ([]string, error) {
-	url := fmt.Sprintf("%s/games/user/%s?max=%d&clocks=true&opening=true&rated=true&perfType=ultraBullet,bullet,blitz,rapid,classical", c.baseURL, username, max)
+	url := fmt.Sprintf("%s/games/user/%s?max=%d&clocks=true&opening=true&rated=true&perfType=ultraBullet,bullet,blitz,rapid,classical,correspondence", c.baseURL, username, max)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -102,8 +102,10 @@ func (c *Client) FetchGame(ctx context.Context, gameID string) (string, error) {
 }
 
 // FetchStudies downloads all study chapters for the given username in PGN format.
+// Studies live under /study/, not /api/, so we strip the /api suffix from baseURL.
 func (c *Client) FetchStudies(ctx context.Context, username string) ([]string, error) {
-	url := fmt.Sprintf("%s/study/by/%s/export.pgn?clocks=true", c.baseURL, username)
+	base := strings.TrimSuffix(c.baseURL, "/api")
+	url := fmt.Sprintf("%s/study/by/%s/export.pgn?clocks=true", base, username)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

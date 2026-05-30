@@ -40,8 +40,9 @@ func GetProfile(
 		}
 
 		games = chessanalyzer.AnnotateGamesLastN(c.Request.Context(), games, stockfishAnnotateN, sfEngine, stockfishDepthProfile)
+		styleMetrics := chessanalyzer.ComputeStyleMetrics(games, username)
 
-		c.JSON(http.StatusOK, buildProfile(username, games, metrics, ""))
+		c.JSON(http.StatusOK, buildProfile(username, games, metrics, styleMetrics, ""))
 	}
 }
 

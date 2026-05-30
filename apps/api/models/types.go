@@ -1,5 +1,23 @@
 package models
 
+type OpeningRecord struct {
+	Name    string  `json:"name"`
+	Games   int     `json:"games"`
+	WinRate float64 `json:"win_rate"`
+}
+
+type StyleMetrics struct {
+	StyleLabel         string          `json:"style_label"`
+	AggressionIndex    float64         `json:"aggression_index"`
+	TacticalVolatility float64         `json:"tactical_volatility"`
+	AvgGameLength      float64         `json:"avg_game_length"`
+	OpeningAccuracy    float64         `json:"opening_accuracy"`
+	MiddlegameAccuracy float64         `json:"middlegame_accuracy"`
+	EndgameAccuracy    float64         `json:"endgame_accuracy"`
+	TopOpeningsWhite   []OpeningRecord `json:"top_openings_white"`
+	TopOpeningsBlack   []OpeningRecord `json:"top_openings_black"`
+}
+
 type OpeningStat struct {
 	Games   int     `json:"games"`
 	WinRate float64 `json:"win_rate"`
@@ -58,12 +76,13 @@ type Game struct {
 }
 
 type PlayerProfile struct {
-	Username   string        `json:"username"`
-	Elo        int           `json:"elo"`
-	Metrics    PlayerMetrics `json:"metrics"`
-	Narrative  string        `json:"narrative"`
-	Games      []Game        `json:"games"`
-	AnalyzedAt string        `json:"analyzed_at"`
+	Username     string        `json:"username"`
+	Elo          int           `json:"elo"`
+	Metrics      PlayerMetrics `json:"metrics"`
+	StyleMetrics StyleMetrics  `json:"style_metrics"`
+	Narrative    string        `json:"narrative"`
+	Games        []Game        `json:"games"`
+	AnalyzedAt   string        `json:"analyzed_at"`
 }
 
 type ChatMessage struct {

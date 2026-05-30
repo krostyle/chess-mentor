@@ -3,6 +3,7 @@ import { UserButton } from '@clerk/nextjs'
 import { getProfile } from '@/lib/api'
 import { PlayerProfile } from '@/components/PlayerProfile'
 import { GameViewer } from '@/components/GameViewer'
+import { ScoutingReport } from '@/components/ScoutingReport'
 
 interface Props {
   params: Promise<{ username: string }>
@@ -46,6 +47,8 @@ export default async function ProfilePage({ params }: Props) {
         </header>
 
         <PlayerProfile profile={profile} />
+
+        <ScoutingReport metrics={profile.metrics} styleMetrics={profile.style_metrics} />
 
         {profile.games.length > 0 && (
           <GameViewer

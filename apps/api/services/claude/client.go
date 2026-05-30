@@ -313,6 +313,74 @@ func (c *Client) GameChat(ctx context.Context, game models.Game, playerUsername 
 	return extractText(msg.Content), nil
 }
 
+// GenerateScouting produces a tournament-prep scouting report about a player.
+func (c *Client) GenerateScouting(ctx context.Context, metrics models.PlayerMetrics, style models.StyleMetrics) (string, error) {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "JUGADOR: %s (ELO %d) — Estilo detectado: %s\n\n", metrics.Username, metrics.Elo, style.StyleLabel)
+	fmt.Fprintf(&sb, "MÉTRICAS GENERALES:\n")
+	fmt.Fprintf(&sb, "- Partidas analizadas: %d | Duración promedio: %.0f movimientos\n", metrics.TotalGamesAnalyzed, style.AvgGameLength)
+	fmt.Fprintf(&sb, "- Índice de agresión: %.2f (0=pasivo, 1=muy agresivo) | Volatilidad táctica: %.2f\n", style.AggressionIndex, style.TacticalVolatility)
+	fmt.Fprintf(&sb, "- Conversión con ventaja material: %.0f%% | Con desventaja: %.0f%%\n",
+		metrics.PerformanceWithAdvantage*100, metrics.PerformanceInDisadvantage*100)
+
+	fmt.Fprintf(&sb, "\nPRECISIÓN POR FASE (1.0 = sin errores):\n")
+	fmt.Fprintf(&sb, "- Apertura: %.2f | Medio juego: %.2f | Final: %.2f\n",
+		style.OpeningAccuracy, style.MiddlegameAccuracy, style.EndgameAccuracy)
+
+	fmt.Fprintf(&sb, "\nPATRONES DE ERROR:\n")
+	fmt.Fprintf(&sb, "- Tasa de pérdida en movs 20-40: %.0f%% | Errores impulsivos (<3s): %.0f%%\n",
+		metrics.MistakePatterns.Moves20To30LossRate*100, metrics.MistakePatterns.ImpulsiveErrorsPercentage*100)
+	fmt.Fprintf(&sb, "- Error más frecuente: %s\n", metrics.MostCommonErrorType)
+
+	if len(style.TopOpeningsWhite) > 0 {
+		fmt.Fprintf(&sb, "\nREPERTORIO COMO BLANCAS:\n")
+		for _, o := range style.TopOpeningsWhite {
+			fmt.Fprintf(&sb, "- %s: %d partidas, %.0f%% winrate\n", o.Name, o.Games, o.WinRate*100)
+		}
+	}
+	if len(style.TopOpeningsBlack) > 0 {
+		fmt.Fprintf(&sb, "\nREPERTORIO COMO NEGRAS:\n")
+		for _, o := range style.TopOpeningsBlack {
+			fmt.Fprintf(&sb, "- %s: %d partidas, %.0f%% winrate\n", o.Name, o.Games, o.WinRate*100)
+		}
+	}
+
+	userMsg := fmt.Sprintf(`Eres un preparador de torneo. Basándote EXCLUSIVAMENTE en estos datos estadísticos, genera un informe de scouting.
+
+%s
+
+Responde con estas 4 secciones en markdown:
+
+## Estilo de juego
+Describe cómo juega este jugador: ¿táctico o posicional? ¿agresivo o sólido? ¿prefiere finales o medio juego? Sé específico con los datos.
+
+## Puntos débiles a explotar
+Lista 2-3 debilidades concretas con los datos que las sustentan. Por ejemplo: "comete el X%% de errores en el medio juego" o "convierte solo el X%% con ventaja material".
+
+## Aperturas recomendadas para enfrentarlo
+Basándote en su repertorio y winrates, sugiere qué aperturas provocar. Si tiene bajo winrate con alguna apertura, menciónala. Si no hay datos suficientes, indícalo honestamente.
+
+## Plan de partido
+2-3 consejos concretos y prácticos para ganarle a este jugador específicamente.`, sb.String())
+
+	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     c.model,
+		MaxTokens: 1024,
+		System: []anthropic.TextBlockParam{
+			{Text: "Eres un preparador de ajedrez de torneo. Usas solo datos reales. Nunca inventas información. Responde siempre en español."},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(userMsg)),
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("claude API error: %w", err)
+	}
+
+	stats.Global.Record("scouting", int64(msg.Usage.InputTokens), int64(msg.Usage.OutputTokens))
+	return extractText(msg.Content), nil
+}
+
 func extractText(blocks []anthropic.ContentBlockUnion) string {
 	for _, block := range blocks {
 		if block.Type == "text" {

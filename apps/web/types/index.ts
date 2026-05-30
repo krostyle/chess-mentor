@@ -1,3 +1,21 @@
+export interface OpeningRecord {
+  name: string
+  games: number
+  win_rate: number
+}
+
+export interface StyleMetrics {
+  style_label: string
+  aggression_index: number
+  tactical_volatility: number
+  avg_game_length: number
+  opening_accuracy: number
+  middlegame_accuracy: number
+  endgame_accuracy: number
+  top_openings_white: OpeningRecord[]
+  top_openings_black: OpeningRecord[]
+}
+
 export interface OpeningStat {
   games: number
   win_rate: number
@@ -69,6 +87,7 @@ export interface PlayerProfile {
   username: string
   elo: number
   metrics: PlayerMetrics
+  style_metrics: StyleMetrics
   narrative: string
   games: Game[]
   analyzed_at: string

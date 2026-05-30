@@ -60,6 +60,7 @@ func main() {
 		ai.Use(handlers.ClerkAuth())
 	}
 	ai.POST("/profile/narrative", handlers.NarrateProfile(claudeClient))
+	ai.POST("/profile/scouting", handlers.ScoutPlayer(claudeClient))
 	ai.POST("/game/analyze", handlers.AnalyzeGame(sfEngine))
 	ai.POST("/game/narrative", handlers.NarrateGame(claudeClient))
 	ai.POST("/game/chat", handlers.ChatGame(claudeClient))

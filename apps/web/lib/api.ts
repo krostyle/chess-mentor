@@ -1,4 +1,4 @@
-import type { PlayerProfile, Game, ExplainRequest, ExplainResponse } from '@/types'
+import type { PlayerProfile, Game, ExplainRequest, ExplainResponse, PlayerMetrics, StyleMetrics } from '@/types'
 
 function apiUrl(): string {
   if (typeof window === 'undefined') {
@@ -97,6 +97,26 @@ export async function chatGame(
     if (!res.ok) return null
     const data = await res.json() as { reply: string }
     return data.reply
+  } catch {
+    return null
+  }
+}
+
+export async function scoutPlayer(
+  metrics: PlayerMetrics,
+  styleMetrics: StyleMetrics,
+  token?: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${apiUrl()}/api/profile/scouting`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ metrics, style_metrics: styleMetrics }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { report: string }
+    return data.report
   } catch {
     return null
   }
